@@ -1,0 +1,21 @@
+<!-- Launcher/app icon: the same glasses, in the iohelper violet on a dark
+     rounded tile, with a green spark to match the desktop icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#171A23"
+        android:pathData="M10,0 h28 a10,10 0 0 1 10,10 v28 a10,10 0 0 1 -10,10 h-28 a10,10 0 0 1 -10,-10 v-28 a10,10 0 0 1 10,-10 z" />
+    <path
+        android:fillColor="#7C5CFF"
+        android:fillType="evenOdd"
+        android:pathData="M15.5,26 m-8.5,0 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0 M15.5,26 m-5.6,0 a5.6,5.6 0 1,0 11.2,0 a5.6,5.6 0 1,0 -11.2,0 M32.5,26 m-8.5,0 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0 M32.5,26 m-5.6,0 a5.6,5.6 0 1,0 11.2,0 a5.6,5.6 0 1,0 -11.2,0" />
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M22.6,24.6 h2.8 v2.6 h-2.8 z" />
+    <path
+        android:fillColor="#3ECF8E"
+        android:pathData="M33.2,9.4 h2.4 v4.0 h4.0 v2.4 h-4.0 v4.0 h-2.4 v-4.0 h-4.0 v-2.4 h4.0 z" />
+</vector>

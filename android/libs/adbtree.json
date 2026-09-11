@@ -1,0 +1,824 @@
+{
+  "sha": "c849886ebc6d48e7b46d967e78a6bb65c90c3b74",
+  "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/c849886ebc6d48e7b46d967e78a6bb65c90c3b74",
+  "tree": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6ed77cce3a16fab1f904a5764c8d44c2692d4ba5",
+      "size": 47,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6ed77cce3a16fab1f904a5764c8d44c2692d4ba5"
+    },
+    {
+      "path": "COPYING",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b6a0e663fa262031f2c407781696b3b317ce0d5d",
+      "size": 483,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/b6a0e663fa262031f2c407781696b3b317ce0d5d"
+    },
+    {
+      "path": "LICENSES",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8c3ee0263af6585b8f08504066a0666c60db0c38",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/8c3ee0263af6585b8f08504066a0666c60db0c38"
+    },
+    {
+      "path": "LICENSES/Apache-2.0",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "325c59c97b4b1f11cc3ec8b19ee0fce05b934c13",
+      "size": 10001,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/325c59c97b4b1f11cc3ec8b19ee0fce05b934c13"
+    },
+    {
+      "path": "LICENSES/BSD-3-Clause",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3789c3e4a32520d505c59893cfd4ad7bcae0e6d7",
+      "size": 1844,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/3789c3e4a32520d505c59893cfd4ad7bcae0e6d7"
+    },
+    {
+      "path": "LICENSES/GPL-3.0-or-later",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b7b2bd95e18b3c71bce4d2e8a244d5214f5c99a5",
+      "size": 35657,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/b7b2bd95e18b3c71bce4d2e8a244d5214f5c99a5"
+    },
+    {
+      "path": "LICENSES/MIT",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2827cab61b40f5ca1c23698382748d97715e1c4f",
+      "size": 1568,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/2827cab61b40f5ca1c23698382748d97715e1c4f"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "815cf467458029b3cf38256917b4491db52833c1",
+      "size": 9731,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/815cf467458029b3cf38256917b4491db52833c1"
+    },
+    {
+      "path": "SERVICES.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dfe9b2b28e2cf834eae10d5b3ca5548f0de62852",
+      "size": 2374,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/dfe9b2b28e2cf834eae10d5b3ca5548f0de62852"
+    },
+    {
+      "path": "app",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "871414d7047f37db3a733253e11eb7abd80981d9",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/871414d7047f37db3a733253e11eb7abd80981d9"
+    },
+    {
+      "path": "app/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "42afabfd2abebf31384ca7797186a27a4b7dbee8",
+      "size": 6,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/42afabfd2abebf31384ca7797186a27a4b7dbee8"
+    },
+    {
+      "path": "app/build.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a944efd976b8a5fc01c06c92ac456585a009d5b3",
+      "size": 1379,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/a944efd976b8a5fc01c06c92ac456585a009d5b3"
+    },
+    {
+      "path": "app/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2c96c24bdf19f4b78cfc0ac0ad269a43c2d461df",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/2c96c24bdf19f4b78cfc0ac0ad269a43c2d461df"
+    },
+    {
+      "path": "app/src/main",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7ff500d8a051c7cf1a8b918798e3de7b2adb1256",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/7ff500d8a051c7cf1a8b918798e3de7b2adb1256"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a74a4e53bb4d54ead8a6e30575bb9c1a6e681eb0",
+      "size": 810,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/a74a4e53bb4d54ead8a6e30575bb9c1a6e681eb0"
+    },
+    {
+      "path": "app/src/main/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "861d546dd9aca0d9abf95cff5007579d16dd7fd0",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/861d546dd9aca0d9abf95cff5007579d16dd7fd0"
+    },
+    {
+      "path": "app/src/main/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "40f73012112701e6d47982f3f974134c9579139a",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/40f73012112701e6d47982f3f974134c9579139a"
+    },
+    {
+      "path": "app/src/main/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "063f440b8a2f6ec1fb7e9eb472a3716de7c508ec",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/063f440b8a2f6ec1fb7e9eb472a3716de7c508ec"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c6a5bea54ea974ed6f2a06e1784f480b0da5075d",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/c6a5bea54ea974ed6f2a06e1784f480b0da5075d"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon/adb",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "fd86c3b799e0e3f7b96984a7f8ae5ac8778912f5",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/fd86c3b799e0e3f7b96984a7f8ae5ac8778912f5"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon/adb/testapp",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4cc0880e731743b25ef68f91e8f500af673a9627",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/4cc0880e731743b25ef68f91e8f500af673a9627"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon/adb/testapp/AdbConnectionManager.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cdf1e55bf9f2ca6fefdf3b285e7f6a09f62cbe2c",
+      "size": 7459,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/cdf1e55bf9f2ca6fefdf3b285e7f6a09f62cbe2c"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon/adb/testapp/App.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1b8ce62f427498af3038abd2a315befcf9d9cde8",
+      "size": 681,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/1b8ce62f427498af3038abd2a315befcf9d9cde8"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon/adb/testapp/MainActivity.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ddcb92ff0ee1ad23eee559a47c0fab9c9522fd9d",
+      "size": 8143,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/ddcb92ff0ee1ad23eee559a47c0fab9c9522fd9d"
+    },
+    {
+      "path": "app/src/main/java/io/github/muntashirakon/adb/testapp/MainViewModel.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "69aae6a5d4616786c9ee4d7c3c1ae837eecce4f2",
+      "size": 7997,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/69aae6a5d4616786c9ee4d7c3c1ae837eecce4f2"
+    },
+    {
+      "path": "app/src/main/res",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a2cb383af7ec4fa0891a8e2ea4b8f33d9ef59fff",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/a2cb383af7ec4fa0891a8e2ea4b8f33d9ef59fff"
+    },
+    {
+      "path": "app/src/main/res/drawable-v24",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f8fca97239e128dcd6935dbffe121822ff2de779",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/f8fca97239e128dcd6935dbffe121822ff2de779"
+    },
+    {
+      "path": "app/src/main/res/drawable-v24/ic_launcher_foreground.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "02d31f780eca195604eeb254ee4b63d3d537bd0c",
+      "size": 1534,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/02d31f780eca195604eeb254ee4b63d3d537bd0c"
+    },
+    {
+      "path": "app/src/main/res/drawable",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "de6b28805a515d808a9e498e22e85d8e6169254c",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/de6b28805a515d808a9e498e22e85d8e6169254c"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_add_link.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11e97220e21c97ca45463c75085d757c8f5bf12d",
+      "size": 595,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/11e97220e21c97ca45463c75085d757c8f5bf12d"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_launcher_background.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c938cdd12de4c64f5e82b594ffb15fa02064aa02",
+      "size": 4810,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/c938cdd12de4c64f5e82b594ffb15fa02064aa02"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_link.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9dd1fc7b52d1f9dcea06538150bc21b57987cf11",
+      "size": 597,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/9dd1fc7b52d1f9dcea06538150bc21b57987cf11"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_link_off.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e7cc3989b149bfade209380e157aa3efe86b3974",
+      "size": 705,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/e7cc3989b149bfade209380e157aa3efe86b3974"
+    },
+    {
+      "path": "app/src/main/res/layout",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0791b882549d463d4ea14a38d7cfa69e85aae1bd",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/0791b882549d463d4ea14a38d7cfa69e85aae1bd"
+    },
+    {
+      "path": "app/src/main/res/layout/activity_main.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6687ae187a789350de7010b26b6f8940e29410a4",
+      "size": 2745,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6687ae187a789350de7010b26b6f8940e29410a4"
+    },
+    {
+      "path": "app/src/main/res/layout/dialog_input.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8d25475184e696f6e9d6c3d1de045f86f8ad4dda",
+      "size": 1373,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/8d25475184e696f6e9d6c3d1de045f86f8ad4dda"
+    },
+    {
+      "path": "app/src/main/res/menu",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "52e54ce20714165e02c4d8ead2d83e8cf96ff0cc",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/52e54ce20714165e02c4d8ead2d83e8cf96ff0cc"
+    },
+    {
+      "path": "app/src/main/res/menu/actions_main.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67e09b0982c16b014bbefd738185893883eac966",
+      "size": 721,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/67e09b0982c16b014bbefd738185893883eac966"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi-v26",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "82a5c352420d748e55a96b8f576bc0f0688a8469",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/82a5c352420d748e55a96b8f576bc0f0688a8469"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eca70cfe52eac1ba66ba280a68ca7be8fcf88a16",
+      "size": 272,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/eca70cfe52eac1ba66ba280a68ca7be8fcf88a16"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eca70cfe52eac1ba66ba280a68ca7be8fcf88a16",
+      "size": 272,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/eca70cfe52eac1ba66ba280a68ca7be8fcf88a16"
+    },
+    {
+      "path": "app/src/main/res/mipmap-hdpi",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "fe98dc7bf84769572a3d5c5a8cdb71142b09f64a",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/fe98dc7bf84769572a3d5c5a8cdb71142b09f64a"
+    },
+    {
+      "path": "app/src/main/res/mipmap-hdpi/ic_launcher.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a571e60098c92c2baca8a5df62f2929cbff01b52",
+      "size": 3593,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/a571e60098c92c2baca8a5df62f2929cbff01b52"
+    },
+    {
+      "path": "app/src/main/res/mipmap-hdpi/ic_launcher_round.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "61da551c5594a1f9d26193983d2cd69189014603",
+      "size": 5339,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/61da551c5594a1f9d26193983d2cd69189014603"
+    },
+    {
+      "path": "app/src/main/res/mipmap-mdpi",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3c5f707e8f9b78712826ab8809cb0dfe41e593ab",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/3c5f707e8f9b78712826ab8809cb0dfe41e593ab"
+    },
+    {
+      "path": "app/src/main/res/mipmap-mdpi/ic_launcher.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c41dd28531901b2c23927768c84bb6765ebcc1db",
+      "size": 2636,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/c41dd28531901b2c23927768c84bb6765ebcc1db"
+    },
+    {
+      "path": "app/src/main/res/mipmap-mdpi/ic_launcher_round.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db5080a752731b34d38d7c634732b2cd999125d0",
+      "size": 3388,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/db5080a752731b34d38d7c634732b2cd999125d0"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xhdpi",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c94a701d1e95011fed12380cbe9075b41eaeb710",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/c94a701d1e95011fed12380cbe9075b41eaeb710"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xhdpi/ic_launcher.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6dba46dab19242bf475ddf2e0a10042de6a0be16",
+      "size": 4926,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6dba46dab19242bf475ddf2e0a10042de6a0be16"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xhdpi/ic_launcher_round.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da31a871c8dc461a1ea114510bfac640307b0a90",
+      "size": 7472,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/da31a871c8dc461a1ea114510bfac640307b0a90"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xxhdpi",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "48e99cd17a5218137c787d2de047e8d0a8afb0a4",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/48e99cd17a5218137c787d2de047e8d0a8afb0a4"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "15ac681720f3df43c647bf0c081f0314ee34eae1",
+      "size": 7909,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/15ac681720f3df43c647bf0c081f0314ee34eae1"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b216f2d313cc673d8b8c4da591c174ebed52795c",
+      "size": 11873,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/b216f2d313cc673d8b8c4da591c174ebed52795c"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xxxhdpi",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b078269ec0cdba0c7225130b7ce8dffab20ba40e",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/b078269ec0cdba0c7225130b7ce8dffab20ba40e"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f25a419744727fb48b4b4137b6c6a3a8f2620d51",
+      "size": 10652,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/f25a419744727fb48b4b4137b6c6a3a8f2620d51"
+    },
+    {
+      "path": "app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e96783ccce844001359f968f5cd9d85b341bd3fb",
+      "size": 16570,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/e96783ccce844001359f968f5cd9d85b341bd3fb"
+    },
+    {
+      "path": "app/src/main/res/values",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d98c97126f998d65a89b4466f61f0f73735aaff9",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/d98c97126f998d65a89b4466f61f0f73735aaff9"
+    },
+    {
+      "path": "app/src/main/res/values/strings.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8761386a9590d180e8937c61a7666515363d5370",
+      "size": 749,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/8761386a9590d180e8937c61a7666515363d5370"
+    },
+    {
+      "path": "build.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "77ce18f231e1d87a4bbb7db53e22c204c64661a6",
+      "size": 760,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/77ce18f231e1d87a4bbb7db53e22c204c64661a6"
+    },
+    {
+      "path": "gradle.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6a32f800380032890c4e7a5bcc84a313d8d2556",
+      "size": 192,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/c6a32f800380032890c4e7a5bcc84a313d8d2556"
+    },
+    {
+      "path": "gradle",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "21c6a5dd849b881d078d17a547be6c6ce44655ba",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/21c6a5dd849b881d078d17a547be6c6ce44655ba"
+    },
+    {
+      "path": "gradle/wrapper",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "161a6c080b17ae372f134da549d94369142bce2f",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/161a6c080b17ae372f134da549d94369142bce2f"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8bdaf60c75ab801e22807dde59e12a8735a34077",
+      "size": 45457,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/8bdaf60c75ab801e22807dde59e12a8735a34077"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3e781fbad9c7fee5c5ac0d54b72f25890fcb648f",
+      "size": 339,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/3e781fbad9c7fee5c5ac0d54b72f25890fcb648f"
+    },
+    {
+      "path": "gradlew",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "ef07e0162b183eb9d19a2c9ba7035c283af9f8dd",
+      "size": 8728,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/ef07e0162b183eb9d19a2c9ba7035c283af9f8dd"
+    },
+    {
+      "path": "gradlew.bat",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db3a6ac207e507b0bc1635a9f2c18d3b174e682e",
+      "size": 2843,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/db3a6ac207e507b0bc1635a9f2c18d3b174e682e"
+    },
+    {
+      "path": "jitpack.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ab5a07319b0f7501f99fc06afeb807289452b197",
+      "size": 127,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/ab5a07319b0f7501f99fc06afeb807289452b197"
+    },
+    {
+      "path": "libadb",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0ba801717fdd372d9b70ebe0fbee87f9bbb3f14b",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/0ba801717fdd372d9b70ebe0fbee87f9bbb3f14b"
+    },
+    {
+      "path": "libadb/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "796b96d1c402326528b4ba3c12ee9d92d0e212e9",
+      "size": 7,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/796b96d1c402326528b4ba3c12ee9d92d0e212e9"
+    },
+    {
+      "path": "libadb/build.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c5bee948532c0263a46d2837267452eb1e4f7645",
+      "size": 1185,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/c5bee948532c0263a46d2837267452eb1e4f7645"
+    },
+    {
+      "path": "libadb/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "48f8141c1bc17eb9193b1909e239478d170ab844",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/48f8141c1bc17eb9193b1909e239478d170ab844"
+    },
+    {
+      "path": "libadb/src/main",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "dc57822f31bbd26fb91e56a5558a3a3c2b378880",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/dc57822f31bbd26fb91e56a5558a3a3c2b378880"
+    },
+    {
+      "path": "libadb/src/main/AndroidManifest.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9d05a38aa8bb6c03f6009f08c0b9e11bafa4ddb",
+      "size": 214,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/c9d05a38aa8bb6c03f6009f08c0b9e11bafa4ddb"
+    },
+    {
+      "path": "libadb/src/main/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1484e05f4a5c063978fa65211c75d3d6c8ad59ad",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/1484e05f4a5c063978fa65211c75d3d6c8ad59ad"
+    },
+    {
+      "path": "libadb/src/main/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "cd1048a7d4bb86dd6fab5dc2ee0863b740a08048",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/cd1048a7d4bb86dd6fab5dc2ee0863b740a08048"
+    },
+    {
+      "path": "libadb/src/main/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9aca7b8429cd536a35d486d2364930d428d0e4f5",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/9aca7b8429cd536a35d486d2364930d428d0e4f5"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "03715f4950611b80655fb27b24999ae2b38df137",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/03715f4950611b80655fb27b24999ae2b38df137"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0b85ecf4d1cb3cc1c97b73d51a3ce0b625a6cd1e",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/0b85ecf4d1cb3cc1c97b73d51a3ce0b625a6cd1e"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AbsAdbConnectionManager.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "967c47a4b0e74f0e5bef23cfdc4552d95cfd977e",
+      "size": 21556,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/967c47a4b0e74f0e5bef23cfdc4552d95cfd977e"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbAuthenticationFailedException.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf50eeb967b508447e9d760c568bfedda549cb16",
+      "size": 504,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/bf50eeb967b508447e9d760c568bfedda549cb16"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbConnection.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a21cb66e8b5079515bb175df42e090a50c0101fd",
+      "size": 29766,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/a21cb66e8b5079515bb175df42e090a50c0101fd"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbInputStream.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6d0676f86d787a35dc04ff2f525c3b368b9b069f",
+      "size": 969,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6d0676f86d787a35dc04ff2f525c3b368b9b069f"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbOutputStream.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "189473592e75d3265efa253f375b7d2a599523b1",
+      "size": 874,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/189473592e75d3265efa253f375b7d2a599523b1"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbPairingRequiredException.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f324cb082135f92e0bfdf27fb1c9cc6a89ce2dc1",
+      "size": 188,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/f324cb082135f92e0bfdf27fb1c9cc6a89ce2dc1"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbProtocol.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4c5820601a786c2afcfac4e7efcb921a451a0538",
+      "size": 16666,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/4c5820601a786c2afcfac4e7efcb921a451a0538"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AdbStream.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6d24c06b58e71741fc3b3af00db387ff59316f6d",
+      "size": 9576,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6d24c06b58e71741fc3b3af00db387ff59316f6d"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/AndroidPubkey.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6aa12aa680c4b9b85319452feef1e7a2ffb76f1d",
+      "size": 10620,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6aa12aa680c4b9b85319452feef1e7a2ffb76f1d"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/ByteArrayNoThrowOutputStream.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55cc1bf91c7c1ae92d09fcf6c735b40e62c62f93",
+      "size": 486,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/55cc1bf91c7c1ae92d09fcf6c735b40e62c62f93"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/KeyPair.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4574d8b81c1a4f62d0715350e4fc6a0b642adc1a",
+      "size": 922,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/4574d8b81c1a4f62d0715350e4fc6a0b642adc1a"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/LocalServices.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "523bce3a6880710a5ba8387a36e1bdb961add9ce",
+      "size": 11253,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/523bce3a6880710a5ba8387a36e1bdb961add9ce"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/PRNGFixes.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe6343f81fc3b588e3478d62a1fed7539252494e",
+      "size": 11877,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/fe6343f81fc3b588e3478d62a1fed7539252494e"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/PairingAuthCtx.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a329c29c37ee646d026fce25e3b164936066d0e9",
+      "size": 5085,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/a329c29c37ee646d026fce25e3b164936066d0e9"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/PairingConnectionCtx.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "732a08ef46ea4e659e69f392ae3eac1fedd62426",
+      "size": 14902,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/732a08ef46ea4e659e69f392ae3eac1fedd62426"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/SslUtils.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aea4e6f88bb0ba5127bb7d0a22f19391ea90618b",
+      "size": 4391,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/aea4e6f88bb0ba5127bb7d0a22f19391ea90618b"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/StringCompat.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1e05eeed36c7ff459530978997782fd9a2af5dd9",
+      "size": 845,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/1e05eeed36c7ff459530978997782fd9a2af5dd9"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/android",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "517216cb1f99f615a1f503bd07ae1269b8018087",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/517216cb1f99f615a1f503bd07ae1269b8018087"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/android/AdbMdns.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6b424cbbe52b4af7344a2ade8fbc5882e28e5658",
+      "size": 6281,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/6b424cbbe52b4af7344a2ade8fbc5882e28e5658"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/android/AndroidUtils.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bb679d2fe92dc92e91229987044a986dc8793def",
+      "size": 2056,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/bb679d2fe92dc92e91229987044a986dc8793def"
+    },
+    {
+      "path": "libadb/src/main/java/io/github/muntashirakon/adb/android/package.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "704dd2658fa7347ce00293a4a0b2189ea15f44c4",
+      "size": 79,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/704dd2658fa7347ce00293a4a0b2189ea15f44c4"
+    },
+    {
+      "path": "libadb/src/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5428d1e877b016ee579b9bba18f9e236422721e4",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/5428d1e877b016ee579b9bba18f9e236422721e4"
+    },
+    {
+      "path": "libadb/src/test/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9dd93f3f2718d2c8ba72a8865a1edd4944501f97",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/9dd93f3f2718d2c8ba72a8865a1edd4944501f97"
+    },
+    {
+      "path": "libadb/src/test/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1673278b4451487f2dbef0e07148e020484233fe",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/1673278b4451487f2dbef0e07148e020484233fe"
+    },
+    {
+      "path": "libadb/src/test/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "785e478b2fcfa68a73449f004df900fff4372b66",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/785e478b2fcfa68a73449f004df900fff4372b66"
+    },
+    {
+      "path": "libadb/src/test/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "28c1867c1adfcc16e162f742578f457a419076a7",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/28c1867c1adfcc16e162f742578f457a419076a7"
+    },
+    {
+      "path": "libadb/src/test/java/io/github/muntashirakon/adb",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6ad9f9b2e0bd907d508e20c989823bb6bb86ca80",
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/trees/6ad9f9b2e0bd907d508e20c989823bb6bb86ca80"
+    },
+    {
+      "path": "libadb/src/test/java/io/github/muntashirakon/adb/AndroidPubkeyTest.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "261edac256a0d7b91398f40fd757e141ddf180d6",
+      "size": 41470,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/261edac256a0d7b91398f40fd757e141ddf180d6"
+    },
+    {
+      "path": "settings.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "368a164a3f9044ee470ba1a6b1873bb11ed2aaa9",
+      "size": 104,
+      "url": "https://api.github.com/repos/MuntashirAkon/libadb-android/git/blobs/368a164a3f9044ee470ba1a6b1873bb11ed2aaa9"
+    }
+  ],
+  "truncated": false
+}

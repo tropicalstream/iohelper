@@ -1,0 +1,568 @@
+{
+  "sha": "7615ddd680b990e14513ebb66eac4cb0dbf82464",
+  "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/7615ddd680b990e14513ebb66eac4cb0dbf82464",
+  "tree": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7438a1ee5c504040fdb812053fb03f3594fae75a",
+      "size": 33,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/7438a1ee5c504040fdb812053fb03f3594fae75a"
+    },
+    {
+      "path": ".gitmodules",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf14f1b8ecd23c45552cdce1c3ec9d3bcd5f08dd",
+      "size": 135,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/bf14f1b8ecd23c45552cdce1c3ec9d3bcd5f08dd"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "153d416dc8d2d60076698ec3cbfce34d91436a03",
+      "size": 7651,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/153d416dc8d2d60076698ec3cbfce34d91436a03"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6341cb94a607e445d7c3b55ffa70e47478ea0d7a",
+      "size": 1815,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/6341cb94a607e445d7c3b55ffa70e47478ea0d7a"
+    },
+    {
+      "path": "android",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "da3c74d1db54e9bb479cf382ca97b8b3c278e653",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/da3c74d1db54e9bb479cf382ca97b8b3c278e653"
+    },
+    {
+      "path": "android/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7607bd2c3b6cca9134072192baf3aa538c94fe64",
+      "size": 12,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/7607bd2c3b6cca9134072192baf3aa538c94fe64"
+    },
+    {
+      "path": "android/build.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "893bf05cfcff0a6d156772e532765ed0fedc3110",
+      "size": 1513,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/893bf05cfcff0a6d156772e532765ed0fedc3110"
+    },
+    {
+      "path": "android/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4587dd92abf464254bc5fb6b69a6cb1f4598e0cc",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/4587dd92abf464254bc5fb6b69a6cb1f4598e0cc"
+    },
+    {
+      "path": "android/src/main",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "481436b354895f55d936ed8cfdd82607437f8d40",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/481436b354895f55d936ed8cfdd82607437f8d40"
+    },
+    {
+      "path": "android/src/main/AndroidManifest.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "64007e979cf487376126ef94a6d8ad12b13eaa10",
+      "size": 160,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/64007e979cf487376126ef94a6d8ad12b13eaa10"
+    },
+    {
+      "path": "android/src/main/cpp",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "438af3725978d34f3d1ba036deadd1a9ec33a6b9",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/438af3725978d34f3d1ba036deadd1a9ec33a6b9"
+    },
+    {
+      "path": "android/src/main/cpp/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d308b63075d0b2f574388b924e12f8f779dff393",
+      "size": 74,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/d308b63075d0b2f574388b924e12f8f779dff393"
+    },
+    {
+      "path": "android/src/main/cpp/CMakeLists.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "25473c89c980be9891374a7193a7a1d5b4e53685",
+      "size": 1316,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/25473c89c980be9891374a7193a7a1d5b4e53685"
+    },
+    {
+      "path": "android/src/main/cpp/CMakeLists_CurrentPlatform.cmake",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da78d873329b78cfa0851b7a4779010968a85d08",
+      "size": 981,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/da78d873329b78cfa0851b7a4779010968a85d08"
+    },
+    {
+      "path": "android/src/main/cpp/spake2-c",
+      "mode": "160000",
+      "type": "commit",
+      "sha": "0d15933e5ba3e662cb01245a7ac0dc9fca3eac31"
+    },
+    {
+      "path": "android/src/main/cpp/spake2_jni.cpp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b685e4d4e6d0baadf3a9f2ba3d12ff751079a854",
+      "size": 3716,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/b685e4d4e6d0baadf3a9f2ba3d12ff751079a854"
+    },
+    {
+      "path": "android/src/main/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1320b97e7f6ff67b61b00ec05630da6d1d19be2d",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/1320b97e7f6ff67b61b00ec05630da6d1d19be2d"
+    },
+    {
+      "path": "android/src/main/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "40bc463592014d8bbdad5ebbca16aa1d7d0e51fe",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/40bc463592014d8bbdad5ebbca16aa1d7d0e51fe"
+    },
+    {
+      "path": "android/src/main/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "16a56968867df6a5e0c9748536a5e60061890eb2",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/16a56968867df6a5e0c9748536a5e60061890eb2"
+    },
+    {
+      "path": "android/src/main/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a6cc62dcfdc607cfc15aaf8c20dae97310d0aa7a",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/a6cc62dcfdc607cfc15aaf8c20dae97310d0aa7a"
+    },
+    {
+      "path": "android/src/main/java/io/github/muntashirakon/crypto",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "276768892e73abdebbad08de87b41a8dc2967ccc",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/276768892e73abdebbad08de87b41a8dc2967ccc"
+    },
+    {
+      "path": "android/src/main/java/io/github/muntashirakon/crypto/spake2",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8d0c2ec3255e85950fb5e1de338dd1cbc5ca9786",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/8d0c2ec3255e85950fb5e1de338dd1cbc5ca9786"
+    },
+    {
+      "path": "android/src/main/java/io/github/muntashirakon/crypto/spake2/Spake2Context.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "893b14ebf7c8d6004142d537a7221e1ed6f691a7",
+      "size": 3257,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/893b14ebf7c8d6004142d537a7221e1ed6f691a7"
+    },
+    {
+      "path": "android/src/main/java/io/github/muntashirakon/crypto/spake2/Spake2Role.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4b462f1484c0e30629dc47e777a5bac5a080a2ca",
+      "size": 209,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/4b462f1484c0e30629dc47e777a5bac5a080a2ca"
+    },
+    {
+      "path": "android/src/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3a968ffcc0f44f5df48f263f218d17ffa1ed588c",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/3a968ffcc0f44f5df48f263f218d17ffa1ed588c"
+    },
+    {
+      "path": "android/src/test/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ba2bb964f5d99db83532d32415b556d241e5fc2a",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/ba2bb964f5d99db83532d32415b556d241e5fc2a"
+    },
+    {
+      "path": "android/src/test/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6d8bffb707caee3064e792a0bac00e1f2d12938e",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/6d8bffb707caee3064e792a0bac00e1f2d12938e"
+    },
+    {
+      "path": "android/src/test/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "186ad9af3087fb371d356fe13ff67454a30fad5c",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/186ad9af3087fb371d356fe13ff67454a30fad5c"
+    },
+    {
+      "path": "android/src/test/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6fa5322d8793198fced071f3a64a37c6229c4e9c",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/6fa5322d8793198fced071f3a64a37c6229c4e9c"
+    },
+    {
+      "path": "android/src/test/java/io/github/muntashirakon/crypto",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "334e3483ccc5e91c24f004626c688d167efb23a8",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/334e3483ccc5e91c24f004626c688d167efb23a8"
+    },
+    {
+      "path": "android/src/test/java/io/github/muntashirakon/crypto/spake2",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4adc765bb87e354765928d6f62d72624a3e32043",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/4adc765bb87e354765928d6f62d72624a3e32043"
+    },
+    {
+      "path": "android/src/test/java/io/github/muntashirakon/crypto/spake2/Spake2ContextTest.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "48c99c4c7f9f5b64b8ae959bd5d4064f78fcf449",
+      "size": 5106,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/48c99c4c7f9f5b64b8ae959bd5d4064f78fcf449"
+    },
+    {
+      "path": "android/src/test/java/io/github/muntashirakon/crypto/spake2/Utils.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "78e7b2ed08e17a3cecb71c110c85683a25bdd0a9",
+      "size": 2639,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/78e7b2ed08e17a3cecb71c110c85683a25bdd0a9"
+    },
+    {
+      "path": "build.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2aaa52ae5192c8dfefefba7f1b8c008fe61c1a40",
+      "size": 764,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/2aaa52ae5192c8dfefefba7f1b8c008fe61c1a40"
+    },
+    {
+      "path": "gradle.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "44daf0b31d451ffe5039e258a1094ff3fa4938c2",
+      "size": 126,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/44daf0b31d451ffe5039e258a1094ff3fa4938c2"
+    },
+    {
+      "path": "gradle",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "21c6a5dd849b881d078d17a547be6c6ce44655ba",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/21c6a5dd849b881d078d17a547be6c6ce44655ba"
+    },
+    {
+      "path": "gradle/wrapper",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "161a6c080b17ae372f134da549d94369142bce2f",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/161a6c080b17ae372f134da549d94369142bce2f"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8bdaf60c75ab801e22807dde59e12a8735a34077",
+      "size": 45457,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/8bdaf60c75ab801e22807dde59e12a8735a34077"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3e781fbad9c7fee5c5ac0d54b72f25890fcb648f",
+      "size": 339,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/3e781fbad9c7fee5c5ac0d54b72f25890fcb648f"
+    },
+    {
+      "path": "gradlew",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "ef07e0162b183eb9d19a2c9ba7035c283af9f8dd",
+      "size": 8728,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/ef07e0162b183eb9d19a2c9ba7035c283af9f8dd"
+    },
+    {
+      "path": "gradlew.bat",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db3a6ac207e507b0bc1635a9f2c18d3b174e682e",
+      "size": 2843,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/db3a6ac207e507b0bc1635a9f2c18d3b174e682e"
+    },
+    {
+      "path": "java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "be34f97a2ffeda570f0dbed6cb008a54a921eb96",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/be34f97a2ffeda570f0dbed6cb008a54a921eb96"
+    },
+    {
+      "path": "java/build.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "54a638d0fa715c006efb4e37d7ea2d3cb0c1f256",
+      "size": 1307,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/54a638d0fa715c006efb4e37d7ea2d3cb0c1f256"
+    },
+    {
+      "path": "java/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "958d9b9bdc417af70c598384712de589b6475e04",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/958d9b9bdc417af70c598384712de589b6475e04"
+    },
+    {
+      "path": "java/src/main",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9830777670582d45f7ea0eebd002d410cf12134f",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/9830777670582d45f7ea0eebd002d410cf12134f"
+    },
+    {
+      "path": "java/src/main/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ec190a7698fa0c67c00df95318b0eec67ddf63e3",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/ec190a7698fa0c67c00df95318b0eec67ddf63e3"
+    },
+    {
+      "path": "java/src/main/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f0fc90cc24d41ed06e75a8060ddc455c54917043",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/f0fc90cc24d41ed06e75a8060ddc455c54917043"
+    },
+    {
+      "path": "java/src/main/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "63a3a3af45c087717e7598296d1a515ab18f52fe",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/63a3a3af45c087717e7598296d1a515ab18f52fe"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d98184ca8adaa195eed63bda4a053c392bbe6a56",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/d98184ca8adaa195eed63bda4a053c392bbe6a56"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "04d2d25849cd0b7d70417a35e8066a2f8fc60ea5",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/04d2d25849cd0b7d70417a35e8066a2f8fc60ea5"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5f72fd152001ab07058baa263b51b7cb18acdd98",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/5f72fd152001ab07058baa263b51b7cb18acdd98"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Curve.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c218f8355649035361e0186da96b56dafe6b134",
+      "size": 3647,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/5c218f8355649035361e0186da96b56dafe6b134"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Ed25519.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d9706ca95605c051e1fa1e50adb94998d736c2a9",
+      "size": 1206,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/d9706ca95605c051e1fa1e50adb94998d736c2a9"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Ed25519CurveParameterSpec.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3ede9f3dcabc9f24d24690950e09593c47e8954f",
+      "size": 2359,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/3ede9f3dcabc9f24d24690950e09593c47e8954f"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Ed25519Field.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "493459e92f10823e2f851486a2b2384437f5d3ae",
+      "size": 2688,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/493459e92f10823e2f851486a2b2384437f5d3ae"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Ed25519FieldElement.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11347b898082d5065e47f2c70a15d9da2f7f6272",
+      "size": 34956,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/11347b898082d5065e47f2c70a15d9da2f7f6272"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Ed25519LittleEndianEncoding.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d4609913bf50cb7622b25d93d9850b36acbb208f",
+      "size": 8679,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/d4609913bf50cb7622b25d93d9850b36acbb208f"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/FieldElement.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f85a23c9fc17a5ac16da0010eb5e4a14472e184b",
+      "size": 1798,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/f85a23c9fc17a5ac16da0010eb5e4a14472e184b"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/GroupElement.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f8e9faa6879c1b46fad5da9b8588289bcb1e737",
+      "size": 39306,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/4f8e9faa6879c1b46fad5da9b8588289bcb1e737"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/ed25519/Utils.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "904c073135c257dc6c74bf3e4bfd8476facb8aaa",
+      "size": 2640,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/904c073135c257dc6c74bf3e4bfd8476facb8aaa"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/spake2",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d2589185612299691d6dff263f3edba7f7f05388",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/d2589185612299691d6dff263f3edba7f7f05388"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/spake2/Spake2Context.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6f05577472b1676eaefe7675794972f7c26c1cc3",
+      "size": 36648,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/6f05577472b1676eaefe7675794972f7c26c1cc3"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/spake2/Spake2Role.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4b462f1484c0e30629dc47e777a5bac5a080a2ca",
+      "size": 209,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/4b462f1484c0e30629dc47e777a5bac5a080a2ca"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/x25519",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4c205daba240cec091d442bfe508a672b9a63afe",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/4c205daba240cec091d442bfe508a672b9a63afe"
+    },
+    {
+      "path": "java/src/main/java/io/github/muntashirakon/crypto/x25519/x25519Scalar.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3caac754fdaa2452ab65c72d4299008060e64fca",
+      "size": 11152,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/3caac754fdaa2452ab65c72d4299008060e64fca"
+    },
+    {
+      "path": "java/src/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "07ff7a1430ec4c16dce3fa269f023010f2344d43",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/07ff7a1430ec4c16dce3fa269f023010f2344d43"
+    },
+    {
+      "path": "java/src/test/java",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "62ae7ba8c202466faff74ef4ae59b3bb26552a51",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/62ae7ba8c202466faff74ef4ae59b3bb26552a51"
+    },
+    {
+      "path": "java/src/test/java/io",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3b8246392c9389a7224fd96122397c2bbad71238",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/3b8246392c9389a7224fd96122397c2bbad71238"
+    },
+    {
+      "path": "java/src/test/java/io/github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "84f2ba9a46a5cbd696fd3399230947a6925fade5",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/84f2ba9a46a5cbd696fd3399230947a6925fade5"
+    },
+    {
+      "path": "java/src/test/java/io/github/muntashirakon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "107251d7f402e595993066cb7842bb26ab67a9fa",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/107251d7f402e595993066cb7842bb26ab67a9fa"
+    },
+    {
+      "path": "java/src/test/java/io/github/muntashirakon/crypto",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0411c37e776196bcea8e6b323d60dbcf38cf045d",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/0411c37e776196bcea8e6b323d60dbcf38cf045d"
+    },
+    {
+      "path": "java/src/test/java/io/github/muntashirakon/crypto/spake2",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8a0135ed90d47d2f2cfb628e6b941fa2d6a634b4",
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/trees/8a0135ed90d47d2f2cfb628e6b941fa2d6a634b4"
+    },
+    {
+      "path": "java/src/test/java/io/github/muntashirakon/crypto/spake2/Spake25519Test.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "270a94af4c9bbe9f24395d364be0fd6951705ff3",
+      "size": 16351,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/270a94af4c9bbe9f24395d364be0fd6951705ff3"
+    },
+    {
+      "path": "jitpack.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ab5a07319b0f7501f99fc06afeb807289452b197",
+      "size": 127,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/ab5a07319b0f7501f99fc06afeb807289452b197"
+    },
+    {
+      "path": "settings.gradle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "512d51c988b2ba0e2d40ed3c0914f9a83499afc9",
+      "size": 63,
+      "url": "https://api.github.com/repos/MuntashirAkon/spake2-java/git/blobs/512d51c988b2ba0e2d40ed3c0914f9a83499afc9"
+    }
+  ],
+  "truncated": false
+}

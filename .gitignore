@@ -1,0 +1,23 @@
+config.json
+store.json
+*.log
+*.tmp
+__pycache__/
+*.pyc
+android/build/
+android/debug.keystore
+termux-bundle/
+
+# secrets / local state (never commit)
+spotify-refresh.json
+*.keystore
+*.jks
+*.p12
+*.pem
+.env
+android/verify/build/
+android/verify/build-cmd/
+
+# private device provisioning (package lists etc.) — never commit
+*.local.json
+iohelper-config.local.json

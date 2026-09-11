@@ -1,0 +1,452 @@
+<title>Jarvis on Glass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* A deliberately single-theme page: it emulates an optical instrument, so the
+   ground is painted explicitly and never borrows the host's theme. */
+:root{
+  --ink:#0B0F14;        /* deep blue-graphite, not black */
+  --slate:#141A22;
+  --slate-2:#1B232D;
+  --line:#26313D;
+  --haze:#8B98A8;       /* cool grey, biased toward the ground */
+  --chalk:#E8EEF4;
+  --phosphor:#6BFF9E;   /* the waveguide green - emitted light */
+  --phosphor-dim:#2F8F58;
+  --violet:#7C5CFF;     /* the phone app's own accent */
+  --amber:#FFC857;
+  --sp:clamp(16px,2.4vw,28px);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--ink);color:var(--chalk);
+  font:16px/1.6 "IBM Plex Sans",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:var(--sp)}
+.eyebrow{
+  font:500 12px/1 "IBM Plex Mono",monospace;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--phosphor-dim);
+}
+h1{
+  font:700 clamp(30px,5.2vw,54px)/1.05 "Chakra Petch",sans-serif;
+  margin:.35em 0 .2em;text-wrap:balance;letter-spacing:-.01em;
+}
+h2{font:600 clamp(20px,2.6vw,26px)/1.2 "Chakra Petch",sans-serif;margin:0 0 .5em;text-wrap:balance}
+h3{font:600 15px/1.3 "Chakra Petch",sans-serif;margin:0 0 .35em}
+p{margin:0 0 1em;max-width:66ch;color:var(--haze)}
+p strong{color:var(--chalk);font-weight:600}
+a{color:var(--phosphor)}
+
+/* ---------- stage ---------- */
+.stage{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(260px,.85fr);gap:var(--sp);align-items:start}
+@media (max-width:900px){.stage{grid-template-columns:1fr}}
+
+/* The lens. Monochrome green only inside this element - the iO's Firefly
+   engine is a green-only microdisplay, so any other hue here would be a lie. */
+.lens{
+  position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;
+  border:1px solid var(--line);
+  background:
+    radial-gradient(120% 90% at 22% 18%,#22303c 0%,#161d26 45%,#0d131a 100%),
+    linear-gradient(180deg,#1b2530,#0c1218);
+}
+/* the world seen through 97%-transparent optics: soft, out of focus */
+.world{position:absolute;inset:-8%;filter:blur(14px) saturate(.7);opacity:.85}
+.world i{position:absolute;display:block;border-radius:50%}
+.w1{width:46%;height:60%;left:6%;top:14%;background:radial-gradient(circle,#31465a,transparent 70%)}
+.w2{width:38%;height:52%;right:8%;top:30%;background:radial-gradient(circle,#3d4f42,transparent 70%)}
+.w3{width:60%;height:34%;left:20%;bottom:-6%;background:radial-gradient(circle,#20303e,transparent 70%)}
+.horizon{position:absolute;left:0;right:0;top:62%;height:1px;background:linear-gradient(90deg,transparent,#43596e,transparent);opacity:.5}
+
+/* faint diffraction fringe - diffractive waveguides leak a little colour at the
+   edge of the eyebox. Kept very low so the display still reads as monochrome. */
+.fringe{
+  position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:.14;
+  background:linear-gradient(115deg,transparent 38%,rgba(90,140,255,.5) 47%,rgba(120,255,180,.35) 52%,transparent 62%);
+}
+.vignette{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(70% 70% at 50% 45%,transparent 55%,rgba(0,0,0,.55) 100%)}
+/* scanline-ish non-uniformity */
+.uniformity{position:absolute;inset:0;pointer-events:none;opacity:.06;
+  background:repeating-linear-gradient(0deg,#fff 0 1px,transparent 1px 3px)}
+
+/* The projected card, drawn the way the panel actually works. The display is a
+   green-only emitter, so content is rendered as luminance over black and then
+   tinted: grayscale() collapses ANY colour the browser produced - including the
+   colour-emoji glyphs a browser substitutes for characters like the alarm clock
+   - down to brightness; the multiply layer paints that brightness green; screen
+   composites the result over the scene, where black falls away and only the lit
+   glyphs remain. No stray colour can survive inside the lens. */
+.hud{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+  font-family:"IBM Plex Mono",monospace;
+  padding:0 8%;background:#000;isolation:isolate;mix-blend-mode:screen;
+  transition:opacity .35s ease;
+}
+.hudgray{filter:grayscale(1)}
+.hudtint{position:absolute;inset:0;background:var(--phosphor);
+  mix-blend-mode:multiply;pointer-events:none}
+.hud.blank{opacity:0}
+.hud .app{font-size:clamp(10px,1.3vw,13px);letter-spacing:.14em;text-transform:uppercase;color:#b9c9bf;opacity:.85}
+.hud .ttl{font-size:clamp(12px,1.6vw,16px);font-weight:500;margin-top:.15em;color:#e8f5ee;opacity:.95}
+.hud .body{font-size:clamp(15px,2.25vw,25px);line-height:1.32;margin-top:.3em;color:#fff;
+  white-space:pre-wrap;word-break:break-word;
+  text-shadow:0 0 7px rgba(255,255,255,.5),0 0 20px rgba(255,255,255,.22)}
+.hud .meta{margin-top:.5em;font-size:clamp(9px,1.15vw,11px);color:#9fb4a8;opacity:.75;letter-spacing:.08em}
+/* the same trick, reusable, for the standalone glyphs in the reference grid */
+.ph{position:relative;display:inline-block;background:#000;isolation:isolate;
+  mix-blend-mode:screen;padding:2px 3px}
+.ph .phg{filter:grayscale(1);color:#fff;display:block}
+.ph .pht{position:absolute;inset:0;background:var(--phosphor);
+  mix-blend-mode:multiply;pointer-events:none}
+
+.lensbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap}
+.caption{
+  flex:1 1 320px;min-height:52px;padding:10px 14px;border-radius:10px;
+  background:var(--slate);border:1px solid var(--line);
+  font-size:15px;color:var(--chalk);
+}
+.caption b{color:var(--phosphor);font-weight:600}
+.controls{display:flex;gap:8px;align-items:center}
+button{
+  font:500 13px/1 "IBM Plex Sans",sans-serif;color:var(--chalk);
+  background:var(--slate-2);border:1px solid var(--line);border-radius:8px;
+  padding:10px 14px;cursor:pointer;transition:border-color .15s,color .15s;
+}
+button:hover{border-color:var(--phosphor-dim);color:var(--phosphor)}
+button:focus-visible{outline:2px solid var(--phosphor);outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--phosphor);color:var(--phosphor)}
+
+/* ---------- phone ---------- */
+.phone{
+  border:1px solid var(--line);border-radius:20px;background:#0f141b;
+  padding:14px;box-shadow:0 20px 50px rgba(0,0,0,.45);
+}
+.phone .bar{display:flex;justify-content:space-between;font:500 10px/1 "IBM Plex Mono",monospace;color:var(--haze);margin-bottom:10px}
+.phone .appname{font:700 19px/1 "Chakra Petch",sans-serif;color:var(--chalk)}
+.phone .sub{font-size:11px;color:var(--haze);margin-top:2px}
+.phone .status{font:400 11px/1.4 "IBM Plex Mono",monospace;color:var(--phosphor);margin-top:9px}
+.tracelab{display:flex;justify-content:space-between;margin:12px 0 5px;
+  font:500 9px/1 "IBM Plex Mono",monospace;letter-spacing:.11em;
+  text-transform:uppercase;color:#5d6a78}
+.hintline{font:400 10.5px/1.4 "IBM Plex Sans",sans-serif;color:#5d6a78;margin-top:5px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--phosphor);
+  display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.log{
+  margin-top:12px;height:190px;overflow:hidden;border-radius:8px;
+  background:#0a0e13;border:1px solid var(--line);padding:10px;
+  font:400 11.5px/1.55 "IBM Plex Mono",monospace;color:var(--haze);
+}
+.log div{white-space:pre-wrap;word-break:break-word}
+.log .k{color:var(--violet)}
+.log .g{color:var(--phosphor)}
+.field{margin-top:10px}
+.field label{display:block;font:500 10px/1 "IBM Plex Mono",monospace;color:var(--haze);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.field div{background:#0a0e13;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;color:var(--chalk)}
+.btnstack span{display:block;text-align:center;padding:10px;border-radius:8px;
+  background:var(--violet);color:#fff;font:600 12.5px/1 "IBM Plex Sans",sans-serif;margin-top:8px}
+
+/* ---------- scene list ---------- */
+.scenes{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px;margin-top:14px}
+.sc{
+  text-align:left;padding:9px 11px;border-radius:9px;background:var(--slate);
+  border:1px solid var(--line);cursor:pointer;color:var(--haze);
+  font:500 12px/1.35 "IBM Plex Sans",sans-serif;transition:.15s;
+}
+.sc:hover{border-color:var(--phosphor-dim)}
+.sc[aria-current="true"]{border-color:var(--phosphor);color:var(--chalk);background:var(--slate-2)}
+.sc i{display:block;font:500 10px/1 "IBM Plex Mono",monospace;color:var(--phosphor-dim);font-style:normal;margin-bottom:4px}
+
+/* ---------- content ---------- */
+section{padding:calc(var(--sp)*1.4) 0;border-top:1px solid var(--line);margin-top:calc(var(--sp)*1.4)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:var(--sp)}
+.spec{display:flex;gap:12px;align-items:flex-start}
+.spec .n{font:600 13px/1 "IBM Plex Mono",monospace;color:var(--phosphor);padding-top:3px;min-width:58px}
+.glyphs{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.gl{
+  display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;
+  background:var(--slate);border:1px solid var(--line);
+}
+.gl b{font:400 19px/1 "IBM Plex Mono",monospace;font-weight:400}
+.gl span{font-size:11.5px;color:var(--haze)}
+.pipe{
+  font:400 12.5px/1.85 "IBM Plex Mono",monospace;color:var(--haze);
+  background:var(--slate);border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;overflow-x:auto;white-space:pre;
+}
+.pipe b{color:var(--phosphor);font-weight:400}
+.note{border-left:2px solid var(--amber);padding-left:14px}
+.note h3{color:var(--amber)}
+footer{border-top:1px solid var(--line);margin-top:calc(var(--sp)*1.4);padding:var(--sp) 0 calc(var(--sp)*2);color:var(--haze);font-size:13px}
+footer a{color:var(--phosphor)}
+.tag{display:inline-block;font:500 10px/1 "IBM Plex Mono",monospace;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--amber);border:1px solid var(--amber);
+  border-radius:99px;padding:4px 9px;opacity:.85}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">RayNeo iO&nbsp;· monochrome green waveguide</p>
+  <h1>Jarvis on Glass</h1>
+  <p style="max-width:70ch">A voice assistant that runs <strong>entirely on the phone</strong> — no PC, no companion server — and answers onto a pair of smart glasses. Below is an emulation of what the wearer sees, built to the display's real measured limits. <span class="tag">Emulated view</span></p>
+
+  <div class="stage">
+    <div>
+      <div class="lens">
+        <div class="world"><i class="w1"></i><i class="w2"></i><i class="w3"></i></div>
+        <div class="horizon"></div>
+        <div class="hud blank" id="hud">
+          <div class="hudgray">
+            <div class="app" id="hudApp">Jarvis</div>
+            <div class="ttl" id="hudTitle"></div>
+            <div class="body" id="hudBody"></div>
+            <div class="meta" id="hudMeta"></div>
+          </div>
+          <div class="hudtint"></div>
+        </div>
+        <div class="uniformity"></div>
+        <div class="fringe"></div>
+        <div class="vignette"></div>
+      </div>
+
+      <div class="lensbar">
+        <div class="caption" id="caption">Press play to run the walkthrough.</div>
+        <div class="controls">
+          <button id="play" aria-pressed="false">▶ Play</button>
+          <button id="music" aria-pressed="false" title="Krautrock bed, CC BY">♪ Music</button>
+        </div>
+      </div>
+
+      <div class="scenes" id="scenes"></div>
+    </div>
+
+    <div class="phone">
+      <div class="bar"><span>9:41</span><span>LTE&nbsp;&nbsp;100%</span></div>
+      <div class="appname">Jarvis</div>
+      <div class="sub">com.iohelper.card · foreground service</div>
+      <div class="status"><span class="dot"></span> <span id="phoneState">listening</span>
+        · wake word: jarvis · source: assistant · search on</div>
+      <div class="tracelab"><span>service trace</span><span>logcat via adb</span></div>
+      <div class="log" id="log"></div>
+      <div class="field"><label>Wake word</label><div>jarvis</div>
+        <div class="hintline">Say it at the END of the question — the glasses’ VAD cuts the start of utterances.</div></div>
+      <div class="field"><label>Source (assistant | alwayson)</label><div>assistant</div></div>
+      <div class="btnstack"><span>Save</span><span>Start listening</span><span>Stop</span></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>What the emulation gets right</h2>
+    <p>The iO's display is a green-only microdisplay behind a diffractive waveguide, so the panel above is monochrome by necessity, not by styling. Every constraint below was measured on the device, and the demo obeys all of them.</p>
+    <div class="cols">
+      <div class="spec"><div class="n">115</div><div><h3>Characters, hard</h3><p style="margin:0">A body of 115 characters renders in full; 116–130 is visibly cut; <strong>131 or more never renders at all</strong> — while every layer upstream still reports success.</p></div></div>
+      <div class="spec"><div class="n">chars</div><div><h3>Not bytes</h3><p style="margin:0">A 107-character frame weighing 152 bytes rendered whole, so glyphs cost nothing beyond their character count.</p></div></div>
+      <div class="spec"><div class="n">BMP</div><div><h3>Glyphs, not emoji</h3><p style="margin:0">Basic-Multilingual-Plane symbols render reliably; emoji outside it do not, and are stripped before sending.</p></div></div>
+      <div class="spec"><div class="n">3 lines</div><div><h3>App · title · body</h3><p style="margin:0">The relay forwards only those three fields. Custom icons and notification styles are silently dropped.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Drawing with a green-only display</h2>
+    <p>With no colour and three lines of text, the only way to draw is with characters. These are the glyphs the assistant uses, and the level bar it builds from block characters for timers.</p>
+    <div class="glyphs" id="glyphs"></div>
+
+  </section>
+
+  <section>
+    <h2>How a question becomes a card</h2>
+    <p>The glasses have no camera and no direct link to a computer — the phone is a mandatory relay. Everything below happens on the phone itself.</p>
+    <div class="pipe">your voice ─▶ glasses mic ─▶ RayNeo cloud ASR ─▶ transcript on the phone
+             │
+             ├─▶ <b>wake gate</b>      strict match · trailing wake word · dedup
+             ├─▶ <b>live search</b>    weather · routes · events · prices
+             ├─▶ <b>model</b>          Groq or Gemini, one short sentence
+             │
+             └─▶ notification ─▶ RNLink/SPP ─▶ <b>green waveguide</b></div>
+    <p style="margin-top:1em">Timers, to-dos and the calendar never leave the phone — they are parsed and answered locally, with no model and no network.</p>
+  </section>
+
+  <section>
+    <h2 style="color:var(--amber)">What this demo is not</h2>
+    <div class="note">
+      <p style="margin-bottom:.6em">The lens panel is an <strong>emulation</strong>, not a capture. The iO's display is invisible to any camera pointed at it — that is the point of the optics — so a screenshot of what the wearer sees does not exist. The text, the character limits, the glyphs and the timings are taken from the real device; the rendering of the green is an interpretation.</p>
+      <p style="margin:0">Say the wake word at the <strong>end</strong> of a sentence. The glasses' voice detection truncates the beginning of utterances, so a leading “Jarvis” is often eaten while a trailing one survives.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p style="margin-bottom:.5em"><strong>Music</strong> — “EOTR1” by <a href="https://archive.org/details/eotr6of1">EAR OF THE RAT</a>, from <em>6 of 1</em>. Licensed <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>; trimmed, level-matched and faded for this page.</p>
+    <p style="margin:0">Display characteristics per RayNeo's published specification for the iO: a monochrome green Firefly engine behind a diffractive waveguide, 97% optical transparency, ~1,300 nits at the eye.</p>
+  </footer>
+</div>
+
+<audio id="bed" loop preload="none" src="__AUDIO_DATA_URI__"></audio>
+
+<script>
+(function(){
+  "use strict";
+  var hud=document.getElementById('hud'),hudTitle=document.getElementById('hudTitle'),
+      hudBody=document.getElementById('hudBody'),hudMeta=document.getElementById('hudMeta'),
+      caption=document.getElementById('caption'),log=document.getElementById('log'),
+      phoneState=document.getElementById('phoneState'),scenesEl=document.getElementById('scenes'),
+      playBtn=document.getElementById('play'),musicBtn=document.getElementById('music'),
+      bed=document.getElementById('bed');
+
+  // Nudge glyphs that default to emoji presentation towards TEXT presentation.
+  // The phosphor stack already guarantees the colour is gone; this keeps the
+  // shapes closer to what the glasses' own font draws.
+  function textPres(s){
+    return s.replace(/[⏰⏳⚡⚠☀☁☂☃]/g,
+                     function(m){return m+'︎';});
+  }
+  function card(title,body){
+    hud.classList.remove('blank');
+    hudTitle.textContent=title;hudBody.textContent=textPres(body);
+    hudMeta.textContent=body.length+' / 115 characters';   // count the REAL string
+  }
+  var GLYPHS=[['☀','clear'],['☁','cloud'],['☂','rain'],['⚡','storm'],
+              ['⏰','timer'],['⏳','counting'],['✓','to-do'],['▦','calendar'],
+              ['→','route'],['★','rating'],['⚠','attention'],['▓░','level bar']];
+  (function(){
+    var g=document.getElementById('glyphs');
+    for(var i=0;i<GLYPHS.length;i++){
+      var d=document.createElement('div');d.className='gl';
+      d.innerHTML='<b class="ph"><span class="phg">'+textPres(GLYPHS[i][0])+
+                  '</span><span class="pht"></span></b><span>'+GLYPHS[i][1]+'</span>';
+      g.appendChild(d);
+    }
+  })();
+  function clearCard(){hud.classList.add('blank');}
+  function say(html){caption.innerHTML=html;}
+  function logLine(text,cls){
+    var d=document.createElement('div');
+    if(cls){d.className=cls;}
+    d.textContent=text;log.appendChild(d);
+    while(log.children.length>11){log.removeChild(log.firstChild);}
+    log.scrollTop=log.scrollHeight;
+  }
+
+  // Each step is [delay ms, action]. Text and timings are the real ones.
+  var scenes=[
+    {name:'Weather',steps:[
+      [0,function(){clearCard();log.innerHTML='';phoneState.textContent='listening';
+        say('You click the crown and ask. The wake word goes at the <b>end</b> — the glasses clip the start of what you say.');}],
+      [1400,function(){logLine('heard: What is the weather in Oakland, Jarvis?');
+        say('The phone hears it. The wake word is stripped before anything else runs.');}],
+      [1500,function(){logLine('(crown) -> What is the weather in Oakland','k');phoneState.textContent='thinking';}],
+      [1200,function(){logLine('+ live search','g');say('A live search runs first, so the answer carries real numbers rather than a guess.');}],
+      [1800,function(){logLine('groq: Sunny, 60 °F, 87% humidity, 2 mph wind','g');}],
+      [900,function(){card('Weather','☀ Sunny, 60 °F, 87% humidity, 2 mph wind in Oakland.');
+        phoneState.textContent='listening';
+        say('The card lands in the corner of your eye. A weather answer picks up its glyph automatically.');}],
+      [3600,function(){}]
+    ]},
+    {name:'Commute',steps:[
+      [0,function(){clearCard();log.innerHTML='';say('Routes come from live map data, not the model’s memory.');}],
+      [1200,function(){logLine('heard: How long is the drive to San Francisco, Jarvis?');}],
+      [1400,function(){logLine('+ live search','g');phoneState.textContent='thinking';}],
+      [1600,function(){logLine('groq: About 19 minutes by car via I-80 W','g');}],
+      [800,function(){card('Commute','About 19 minutes by car via I-80 W (≈12.6 mi).');
+        phoneState.textContent='listening';
+        say('Nineteen minutes, by a named road — the route came from a live directions lookup.');}],
+      [3400,function(){}]
+    ]},
+    {name:'Timer',steps:[
+      [0,function(){clearCard();log.innerHTML='';
+        say('Timers never touch the network. They are parsed on the phone, with no model involved.');}],
+      [1200,function(){logLine('heard: Set a timer for two minutes, Jarvis');}],
+      [1200,function(){logLine('command: timer 120s','k');}],
+      [700,function(){card('Timer','⏰ Timer set: Timer in 2 min.');
+        say('Confirmed instantly — no round trip, so it answers even with no signal.');}],
+      [3000,function(){}]
+    ]},
+    {name:'Countdown',steps:[
+      [0,function(){say('Inside the final stretch the card becomes a countdown, redrawn every twenty seconds.');}],
+      [600,function(){card('Timer','⏳ ▓▓▓▓▓░░░░░ 1 min left');}],
+      [1700,function(){card('Timer','⏳ ▓▓▓▓▓▓▓░░░ 54 sec left');}],
+      [1700,function(){card('Timer','⏳ ▓▓▓▓▓▓▓▓░░ 34 sec left');
+        say('The bar is drawn from block characters — the only way to draw a shape with three lines of text.');}],
+      [1700,function(){card('Timer','⏳ ▓▓▓▓▓▓▓▓▓░ 14 sec left');}],
+      [1700,function(){card('Timer','⏰ Timer done');logLine('pushed timer: Timer','g');
+        say('It fires on its own, with nobody asking. A countdown never overwrites an answer you just requested.');}],
+      [3200,function(){}]
+    ]},
+    {name:'To-do',steps:[
+      [0,function(){clearCard();log.innerHTML='';say('Lists are local too, and they persist across restarts.');}],
+      [1200,function(){logLine('heard: Add a todo buy oat milk, Jarvis');}],
+      [1100,function(){logLine('command: todo','k');}],
+      [600,function(){card('To-do','✓ Added: buy oat milk');}],
+      [2600,function(){logLine('heard: Show my task list, Jarvis');clearCard();}],
+      [1300,function(){card('To-do','✓ 1 open: buy oat milk');
+        say('Read straight back from the phone’s own store.');}],
+      [3000,function(){}]
+    ]},
+    {name:'Calendar',steps:[
+      [0,function(){clearCard();log.innerHTML='';phoneState.textContent='listening';
+        say('Some cards arrive unasked. The calendar is read on the phone and watched in the background.');}],
+      [1600,function(){logLine('pushed calendar: Palestine Working Group','g');}],
+      [700,function(){card('Calendar','▦ Palestine Working Group in 10 min (6:00 PM)');
+        say('Ten minutes ahead of the event — no question asked, nothing spoken.');}],
+      [3400,function(){}]
+    ]},
+    {name:'Full frame',steps:[
+      [0,function(){clearCard();log.innerHTML='';
+        say('Everything the display can hold at once: 107 characters, twenty-two glyphs, one line of green.');}],
+      [900,function(){card('Full frame','☀ 64°F ↑79 ↓55 ▓▓▓▓▓▓▓░░░ ▦ Standup 9:00 ⏰ 12m ⚡ BART 8m → Berkeley ✓ 3 todos ★ AQI 21 ☂ 0% ♪ Radiohead ✉ 5');}],
+      [4200,function(){say('At 131 characters the glasses draw nothing at all — and report success anyway. The app clips at 115.');}],
+      [3000,function(){}]
+    ]}
+  ];
+
+  // build scene buttons
+  scenes.forEach(function(s,i){
+    var b=document.createElement('button');
+    b.className='sc';b.innerHTML='<i>'+String(i+1).padStart(2,'0')+'</i>'+s.name;
+    b.addEventListener('click',function(){stop();playFrom(i);});
+    scenesEl.appendChild(b);
+  });
+  var btns=scenesEl.querySelectorAll('.sc');
+  function mark(i){btns.forEach(function(b,j){b.setAttribute('aria-current',j===i?'true':'false');});}
+
+  var timers=[],playing=false,current=0;
+  function stop(){timers.forEach(clearTimeout);timers=[];playing=false;playBtn.textContent='▶ Play';playBtn.setAttribute('aria-pressed','false');}
+  function playFrom(i){
+    if(i>=scenes.length){stop();say('That is the whole loop — every card above is one the device really renders.');return;}
+    current=i;mark(i);playing=true;
+    playBtn.textContent='❚❚ Pause';playBtn.setAttribute('aria-pressed','true');
+    var t=0;
+    scenes[i].steps.forEach(function(st){
+      t+=st[0];
+      timers.push(setTimeout(st[1],t));
+    });
+    timers.push(setTimeout(function(){playFrom(i+1);},t+400));
+  }
+  playBtn.addEventListener('click',function(){
+    if(playing){stop();}else{playFrom(current>=scenes.length-1?0:current);}
+  });
+  musicBtn.addEventListener('click',function(){
+    if(bed.paused){bed.volume=.5;bed.play().then(function(){
+      musicBtn.setAttribute('aria-pressed','true');musicBtn.textContent='♪ Music on';
+    }).catch(function(){musicBtn.textContent='♪ blocked';});}
+    else{bed.pause();musicBtn.setAttribute('aria-pressed','false');musicBtn.textContent='♪ Music';}
+  });
+
+  // resting state: scene 1's card, so the page shows what it does before any click
+  mark(0);
+  card('Weather','☀ Sunny, 60 °F, 87% humidity, 2 mph wind in Oakland.');
+  logLine('listening (wake word: jarvis)');
+  logLine('serpapi: Starter Plan · searches left 957');
+
+  // ...then run itself, so opening the link plays the walkthrough like a film.
+  // Anyone who prefers less motion gets the still frame above and the controls.
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    setTimeout(function(){if(!playing){playFrom(0);}},2400);
+  }
+})();
+</script>

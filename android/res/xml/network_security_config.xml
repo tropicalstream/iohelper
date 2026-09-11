@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sonos speakers speak SOAP over PLAIN HTTP on port 1400 and offer no TLS at
+  all, so controlling one from an app targeting API 28+ is impossible without
+  this: Android refuses cleartext by default and throws
+  "Cleartext HTTP traffic to 192.168.1.x not permitted".
+
+  Cleartext is permitted only as the base policy for this app's own traffic.
+  Everything that leaves the house - Groq, SerpApi, Spotify - is requested over
+  https:// explicitly and is unaffected by this file; it cannot be downgraded by
+  a policy that merely stops refusing plain HTTP. Speaker IPs are handed out by
+  DHCP, so they cannot be pinned as literal domains here.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

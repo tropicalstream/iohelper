@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iohelper</title>
+<style>
+  :root { --bg:#0f1117; --card:#171a23; --line:#262a36; --fg:#e7e9ee; --mut:#8b90a0;
+          --acc:#7c5cff; --ok:#3ecf8e; --bad:#ff5c7a; --warn:#ffb340; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif }
+  header { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line) }
+  header h1 { font-size:18px; margin:0; letter-spacing:.3px }
+  header .pill { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--card); border:1px solid var(--line); color:var(--mut) }
+  header .pill.on { color:var(--ok); border-color:var(--ok) }
+  header .pill.off { color:var(--bad); border-color:var(--bad) }
+  main { display:grid; grid-template-columns: 1.1fr .9fr; gap:18px; padding:18px 22px; max-width:1400px }
+  @media (max-width:980px){ main{ grid-template-columns:1fr } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:18px }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:var(--mut); margin:0 0 12px }
+  .row { display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:center; margin-bottom:8px }
+  .row label { color:var(--mut); font-size:13px }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    width:100%; background:#0d0f15; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--acc) }
+  .hint { color:var(--mut); font-size:12px; margin:-2px 0 8px; grid-column:2 }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 14px; font:inherit; cursor:pointer }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg) }
+  button:disabled { opacity:.5; cursor:default }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px }
+  .kv { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:8px }
+  .kv div { background:#0d0f15; border:1px solid var(--line); border-radius:8px; padding:8px 10px }
+  .kv b { display:block; font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.6px }
+  .log { background:#0a0c11; border:1px solid var(--line); border-radius:8px; padding:10px; font:12px/1.5 ui-monospace,Consolas,monospace; height:260px; overflow:auto; white-space:pre-wrap }
+  .events div { padding:5px 0; border-bottom:1px dashed var(--line); font-size:13px }
+  .events .k { display:inline-block; width:64px; color:var(--mut); font-size:11px; text-transform:uppercase }
+  .ok { color:var(--ok) } .bad { color:var(--bad) } .warn { color:var(--warn) }
+  #toast { position:fixed; right:18px; bottom:18px; background:var(--card); border:1px solid var(--line); padding:10px 14px; border-radius:10px; opacity:0; transition:opacity .2s }
+  #toast.show { opacity:1 }
+  .inline { display:flex; gap:8px } .inline input { flex:1 }
+  .secret-set { color:var(--ok); font-size:12px }
+</style>
+</head>
+<body>
+<header>
+  <h1>iohelper <span style="color:var(--mut);font-weight:400">· RayNeo iO assistant</span></h1>
+  <span class="pill" id="p-adb">adb: …</span>
+  <span class="pill" id="p-listen">listening: …</span>
+  <span class="pill" id="p-llm">llm: …</span>
+  <span class="pill" id="p-serp">search: …</span>
+  <span style="flex:1"></span>
+  <button id="save">Save config</button>
+</header>
+
+<main>
+<section>
+  <div class="card">
+    <h2>Try it (goes through the exact spoken pipeline)</h2>
+    <div class="inline"><input type="text" id="ask" placeholder="what's the weather in Oakland?"><button id="askbtn">Ask &amp; show on glasses</button></div>
+    <div class="bar"><label style="color:var(--mut)"><input type="checkbox" id="ask-deliver" checked> deliver to glasses</label></div>
+    <div id="ask-out" class="hint" style="grid-column:auto;margin-top:8px"></div>
+    <div class="inline" style="margin-top:10px"><input type="text" id="send" placeholder="raw text to put on the glasses (≤115 chars renders)"><button class="ghost" id="sendbtn">Send</button></div>
+    <div class="inline" style="margin-top:10px">
+      <input type="text" id="timer" placeholder="timer: 10 min tea"><button class="ghost" id="timerbtn">Timer</button>
+      <input type="text" id="todo" placeholder="to-do: buy milk"><button class="ghost" id="todobtn">To-do</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Wake word</h2>
+    <div class="row"><label>Trigger word</label><input type="text" data-key="wake.trigger"></div>
+    <div class="hint">Say it at the <b>end</b> of the question ("…to SF, Jarvis?") — the glasses' VAD cuts the start of utterances. Pick a 2-syllable proper noun the ASR knows; "Jarvis" tests best.</div>
+    <div class="row"><label>Known mangles</label><input type="text" data-key="wake.soft_mangles" placeholder="comma-separated"></div>
+    <div class="hint">How the ASR mishears the word. A mangle alone never fires — a question must follow within the soft window.</div>
+    <div class="row"><label>Transcript source</label>
+      <select data-key="wake.source"><option value="alwayson">alwayson — hands-free (Life Log), does NOT wake RayNeo's assistant</option><option value="assistant">assistant — crown/native wake (RayNeo also answers)</option></select></div>
+    <div class="row"><label>Arm window (s)</label><input type="number" data-key="wake.arm_window"></div>
+    <div class="row"><label>Soft-arm window (s)</label><input type="number" data-key="wake.soft_arm_window"></div>
+    <div class="row"><label>Dedup window (s)</label><input type="number" data-key="wake.dedup_window"></div>
+  </div>
+
+  <div class="card">
+    <h2>LLM</h2>
+    <div class="row"><label>Backend</label>
+      <select data-key="llm.backend" id="backend">
+        <option value="groq">Groq (free, fast)</option><option value="gemini">Gemini (free tier)</option>
+        <option value="claude">Claude via OAuth (Claude Code CLI)</option><option value="openai">OpenAI-compatible (Ollama / local)</option>
+      </select></div>
+    <div class="row"><label>Groq API key</label><div class="inline"><input type="password" data-key="llm.groq_api_key" placeholder="gsk_…"><span class="secret-set" data-set="llm.groq_api_key"></span></div></div>
+    <div class="row"><label>Groq model</label><div class="inline"><select data-key="llm.groq_model" data-models="groq"><option value="">auto (newest free 70B)</option></select><button class="ghost" data-load="groq">Load</button></div></div>
+    <div class="row"><label>Gemini API key</label><div class="inline"><input type="password" data-key="llm.gemini_api_key" placeholder="AIza…"><span class="secret-set" data-set="llm.gemini_api_key"></span></div></div>
+    <div class="row"><label>Gemini model</label><div class="inline"><select data-key="llm.gemini_model" data-models="gemini"><option value="">auto (newest free Flash)</option></select><button class="ghost" data-load="gemini">Load</button></div></div>
+    <div class="row"><label>Claude model</label><input type="text" data-key="llm.claude_model"></div>
+    <div class="row"><label>Claude effort</label><select data-key="llm.claude_effort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select></div>
+    <div class="row"><label>Claude CLI path</label><input type="text" data-key="llm.claude_bin" placeholder="auto-resolved"></div>
+    <div class="row"><label>OpenAI-compatible URL</label><input type="text" data-key="llm.openai_base_url"></div>
+    <div class="row"><label>OpenAI-compatible key</label><div class="inline"><input type="password" data-key="llm.openai_api_key"><span class="secret-set" data-set="llm.openai_api_key"></span></div></div>
+    <div class="row"><label>OpenAI-compatible model</label><div class="inline"><select data-key="llm.openai_model" data-models="openai"><option value="">auto</option></select><button class="ghost" data-load="openai">Load</button></div></div>
+    <div class="row"><label>Timeout (s)</label><input type="number" data-key="llm.timeout"></div>
+    <div class="row"><label>Brevity instruction</label><textarea data-key="llm.brief" rows="2"></textarea></div>
+  </div>
+
+  <div class="card">
+    <h2>Live search (SerpApi)</h2>
+    <div class="row"><label>SerpApi key</label><div class="inline"><input type="password" data-key="search.serpapi_key"><span class="secret-set" data-set="search.serpapi_key"></span></div></div>
+    <div class="row"><label>Location</label><input type="text" data-key="search.location" placeholder="Your City, State, Country"></div>
+    <div class="hint">Localizes weather/"near me"/events and is the origin for commute questions.</div>
+    <div class="row"><label>Mode</label><select data-key="search.mode"><option value="auto">auto — only live-data questions</option><option value="always">always</option><option value="off">off</option></select></div>
+    <div class="bar"><button class="ghost" id="serpacct">Check quota</button><span id="serpout" class="hint" style="margin:0"></span></div>
+  </div>
+
+  <div class="card">
+    <h2>Device &amp; display</h2>
+    <div class="row"><label>adb path</label><input type="text" data-key="device.adb"></div>
+    <div class="row"><label>Phone (adb serial)</label><input type="text" data-key="device.serial"></div>
+    <div class="row"><label>Card title</label><input type="text" data-key="device.title" placeholder="empty = wake word"></div>
+    <div class="row"><label>Body limit</label><input type="number" data-key="device.body_limit"></div>
+    <div class="row"><label>Re-post on screen wake</label><select data-key="display.repost_on_wake"><option value="true">on</option><option value="false">off</option></select></div>
+    <div class="row"><label>Calendar context</label><select data-key="calendar.enabled"><option value="true">on</option><option value="false">off</option></select></div>
+    <div class="row"><label>Proactive pushes</label><select data-key="proactive.enabled"><option value="true">on</option><option value="false">off</option></select></div>
+    <div class="row"><label>Calendar lead (min)</label><input type="number" data-key="proactive.lead_minutes"></div>
+    <div class="row"><label>Portal host</label><input type="text" data-key="portal.host"></div>
+    <div class="row"><label>Portal port</label><input type="number" data-key="portal.port"></div>
+    <div class="row"><label>Portal token</label><div class="inline"><input type="password" data-key="portal.token" placeholder="required if host is not 127.0.0.1"><span class="secret-set" data-set="portal.token"></span></div></div>
+    <div class="bar"><button class="ghost" id="connect">Reconnect adb</button></div>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <h2>Status</h2>
+    <div class="kv" id="kv"></div>
+  </div>
+  <div class="card">
+    <h2>Timeline</h2>
+    <div class="events" id="events"></div>
+  </div>
+  <div class="card">
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+const H = { 'Content-Type': 'application/json', ...(TOKEN ? { 'X-Token': TOKEN } : {}) };
+const api = (p, o={}) => fetch(p, { headers: H, ...o }).then(r => r.json());
+const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2200); };
+
+function fill(cfg) {
+  $$('[data-key]').forEach(el => {
+    const [s, k] = el.dataset.key.split('.');
+    let v = (cfg[s] || {})[k];
+    if (Array.isArray(v)) v = v.join(', ');
+    if (typeof v === 'boolean') v = String(v);
+    if (el.tagName === 'SELECT' && el.dataset.models && v && ![...el.options].some(o => o.value === v)) {
+      el.add(new Option(v, v));
+    }
+    el.value = v ?? '';
+  });
+  $$('[data-set]').forEach(el => { el.textContent = cfg._secrets_set?.[el.dataset.set] ? '● set' : ''; });
+}
+function collect() {
+  const out = {};
+  $$('[data-key]').forEach(el => {
+    const [s, k] = el.dataset.key.split('.');
+    (out[s] ||= {})[k] = el.value;
+  });
+  return out;
+}
+async function loadConfig() { fill(await api('/api/config')); }
+$('#save').onclick = async () => {
+  const r = await api('/api/config', { method:'POST', body: JSON.stringify(collect()) });
+  if (r.ok) { fill(r.config); toast('Saved — takes effect immediately'); } else toast('Save failed');
+};
+$$('[data-load]').forEach(b => b.onclick = async () => {
+  b.disabled = true; b.textContent = '…';
+  const r = await api('/api/models?backend=' + b.dataset.load);
+  const sel = $(`select[data-models="${b.dataset.load}"]`), cur = sel.value;
+  sel.innerHTML = '<option value="">auto' + (r.suggested ? ' → ' + r.suggested : '') + '</option>';
+  (r.models || []).forEach(m => sel.add(new Option(m, m)));
+  sel.value = cur; b.disabled = false; b.textContent = 'Load';
+  toast(r.models?.length ? `${r.models.length} models` : 'No models (key missing?)');
+});
+$('#askbtn').onclick = async () => {
+  const q = $('#ask').value.trim(); if (!q) return;
+  $('#ask-out').textContent = 'thinking…';
+  const r = await api('/api/ask', { method:'POST', body: JSON.stringify({ text:q, deliver: $('#ask-deliver').checked }) });
+  $('#ask-out').innerHTML = r.error ? `<span class="bad">${r.error}</span>`
+    : `<b>${r.source}</b>: ${r.answer} ${r.delivered ? (r.rendered ? '<span class="ok">· rendered on glasses</span>' : '<span class="warn">· sent, no receipt (glasses asleep?)</span>') : ''}`;
+};
+$('#sendbtn').onclick = async () => {
+  const t = $('#send').value.trim(); if (!t) return;
+  const r = await api('/api/send', { method:'POST', body: JSON.stringify({ text:t }) });
+  toast(r.error ? r.error : r.rendered ? 'Rendered on glasses' : 'Sent, no receipt');
+};
+$('#timerbtn').onclick = async () => {
+  const v = $('#timer').value.trim(); if (!v) return;
+  const m = v.match(/^(.*?\d+\s*\w+)\s*(.*)$/); const r = await api('/api/timer', { method:'POST', body: JSON.stringify({ duration: m ? m[1] : v, label: m ? m[2] : '' }) });
+  toast(r.error || `Timer set: ${r.label}`);
+};
+$('#todobtn').onclick = async () => {
+  const v = $('#todo').value.trim(); if (!v) return;
+  const r = await api('/api/todo', { method:'POST', body: JSON.stringify({ text:v }) }); toast(r.error || `Added: ${r.text}`);
+};
+$('#serpacct').onclick = async () => { const r = await api('/api/search/account'); $('#serpout').textContent = r.error ? r.error : `${r.plan_name}: ${r.total_searches_left} searches left`; };
+$('#connect').onclick = async () => { const r = await api('/api/connect', { method:'POST', body:'{}' }); toast('adb: ' + r.adb); };
+
+async function refresh() {
+  try {
+    const s = await api('/api/status'), st = s.status;
+    const pill = (id, on, txt) => { const p = $(id); p.textContent = txt; p.className = 'pill ' + (on ? 'on' : 'off'); };
+    pill('#p-adb', st.adb === 'connected', 'adb: ' + st.adb);
+    pill('#p-listen', st.listening, st.listening ? 'listening' : 'not listening');
+    pill('#p-llm', !st.last_error, `llm: ${s.backend}${st.model ? ' · ' + st.model : ''}`);
+    pill('#p-serp', st.serpapi && !st.serpapi.startsWith('error') && st.serpapi !== 'no key', 'search: ' + (st.serpapi || '—'));
+    const up = Math.round((Date.now()/1000 - st.started_at)/60);
+    $('#kv').innerHTML = [['wake word', s.trigger], ['uptime', up + ' min'], ['captures', st.captures], ['fires', st.fires],
+      ['soft arms', st.soft_arms], ['ignored', st.ignored], ['delivered', st.delivered], ['unconfirmed', st.unconfirmed],
+      ['last transcript', st.last_transcript || '—'], ['last answer', st.last_answer || '—'], ['last error', st.last_error || '—']]
+      .map(([k,v]) => `<div><b>${k}</b>${v}</div>`).join('');
+    $('#events').innerHTML = s.events.slice().reverse().map(e => `<div><span class="k">${e.kind}</span>${e.text}</div>`).join('') || '<div class="hint">nothing yet</div>';
+    const l = $('#log'); const atBottom = l.scrollTop + l.clientHeight >= l.scrollHeight - 20;
+    l.textContent = s.log.join('\n'); if (atBottom) l.scrollTop = l.scrollHeight;
+  } catch (e) { $('#p-adb').textContent = 'portal unreachable'; }
+}
+loadConfig(); refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

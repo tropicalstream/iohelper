@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The whole point of this app: a notification's header on the glasses is the
+     POSTING APP'S LABEL. `adb shell cmd notification post` posts as
+     com.android.shell, so every card read "Shell". This app posts them instead,
+     so the header is its label ("Jarvis") - and it also accepts a per-card
+     `header` extra (android.substName) so the name can change without a
+     rebuild. Bonus: it can CANCEL notifications, which `cmd notification` cannot. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.iohelper.card"
+    android:versionCode="2"
+    android:versionName="2.0">
+
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The assistant is a foreground service, and a reboot kills it. Wireless
+         debugging survives the restart on its own, so this is the only thing
+         standing between a reboot and the app coming back with no cable and no
+         tapping. See BootReceiver. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Location makes weather, routes and "near me" answers correct while
+         moving; a typed-in city is wrong the moment you leave it. The FGS
+         type is added at runtime only when the permission is actually
+         granted - see AssistantService - so denying it degrades the answers
+         instead of stopping the service. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Granted once via `adb shell pm grant`. NOTE it is necessary but NOT
+         sufficient: logd still filters the buffer by UID (measured: 51 lines
+         visible to the app vs 4154 to adb), which is exactly why the assistant
+         reads the log through the phone's own adbd instead. -->
+    <uses-permission android:name="android.permission.READ_LOGS" />
+    <!-- runtime permission; the app asks, or grant with
+         adb shell pm grant com.iohelper.card android.permission.READ_CALENDAR -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- Reminders are written into a private LOCAL calendar named "Jarvis" so
+         they persist on the glasses' dashboard and get a second delivery from
+         the phone's own calendar. Never touches the user's real calendars. -->
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher"
+        android:allowBackup="false"
+        android:hasCode="true"
+        android:extractNativeLibs="true"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- specialUse: a personal assistant reading a debug stream; none of the
+             standard FGS types (camera, location, mediaPlayback...) describe it. -->
+        <service
+            android:name=".AssistantService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|location">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Reads the paired smart glasses' voice transcripts and answers them" />
+        </service>
+
+        <!-- Relays Google Maps' live turn-by-turn to the glasses. The system
+             binds it once "Notification access" is granted; requiring the
+             signature permission BIND_NOTIFICATION_LISTENER_SERVICE of its
+             binder means only the system can. exported=true is the documented
+             value for a system-bound listener. -->
+        <service
+            android:name=".NavListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Mirrors YouTube's on-screen captions to the glasses. Captions are
+             drawn, not broadcast, so the accessibility tree is the only place
+             they exist to be read; res/xml/caption_service.xml scopes this to
+             the YouTube package alone. Off until the user grants access in
+             Settings > Accessibility, and gated again by captions.relay. -->
+        <service
+            android:name=".CaptionListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/caption_service" />
+        </service>
+
+        <!-- Restarts the assistant after a reboot (and after an update),
+             but only if it was running when the phone went down. Not exported:
+             only the system sends these. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- exported so `adb shell am broadcast` can reach it -->
+        <receiver
+            android:name=".ShowReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.iohelper.card.SHOW" />
+                <action android:name="com.iohelper.card.CANCEL" />
+                <action android:name="com.iohelper.card.PROBE" />
+                <action android:name="com.iohelper.card.ADBPROBE" />
+                <action android:name="com.iohelper.card.CONFIG" />
+                <action android:name="com.iohelper.card.CONFIGFILE" />
+                <action android:name="com.iohelper.card.DIAG" />
+                <action android:name="com.iohelper.card.SAY" />
+                <action android:name="com.iohelper.card.START" />
+                <action android:name="com.iohelper.card.STOP" />
+                <action android:name="com.iohelper.card.WIRELESS" />
+                <action android:name="com.iohelper.card.PAIR" />
+                <action android:name="com.iohelper.card.PAIRREPLY" />
+                <action android:name="com.iohelper.card.SHOWX" />
+                <action android:name="com.iohelper.card.CARDREPLY" />
+                <action android:name="com.iohelper.card.CAPPROBE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Scoped as narrowly as the platform allows: YouTube only, window-content
+     changes only. packageNames is the important line - without it this service
+     would be handed the contents of every screen on the phone, which is far
+     more than mirroring captions needs.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="300"
+    android:packageNames="com.google.android.youtube,com.google.android.apps.bard,com.google.android.googlequicksearchbox"
+    android:description="@string/caption_service_desc" />

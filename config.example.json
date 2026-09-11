@@ -1,0 +1,8 @@
+{
+  "device": { "serial": "", "title": "", "body_limit": 115 },
+  "wake":   { "trigger": "jarvis", "source": "alwayson" },
+  "llm":    { "backend": "groq", "groq_api_key": "gsk_...", "gemini_api_key": "AIza...",
+              "claude_model": "claude-sonnet-5", "claude_effort": "high" },
+  "search": { "serpapi_key": "...", "location": "Oakland, California, United States", "mode": "auto" },
+  "portal": { "host": "127.0.0.1", "port": 8765 }
+}
