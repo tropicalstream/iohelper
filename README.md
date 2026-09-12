@@ -2,11 +2,17 @@
 
 Press the **crown** on the glasses, ask a question, and the answer appears on
 the lens a few seconds later — no PC, no wake word, nothing to say first.
-Answers come from **Groq**, the **latest free Gemini**, or **Claude via OAuth**
+Answers come from **OpenAI** (`gpt-5.6-luna`, about a tenth of a cent a
+question), **Groq** (free), the **latest free Gemini**, or **Claude via OAuth**
 (your Claude Code login — no API key), with **SerpApi** live data for
 weather / commute / events / news / prices. Timers, to-dos, notes and calendar
 heads-ups are handled locally, and live Google Maps turn-by-turn, media
-control and Sonos playback are relayed straight to the lens.
+control and Sonos playback are relayed straight to the lens. With OpenAI or
+Groq the model can also **act**: anything the built-in phrases don't
+recognise — *"the pasta needs twelve minutes, let me know when it's done"*,
+*"find the official video for Bohemian Rhapsody and play it"* — is handed to
+the model with the same timer, list, calendar, music, radio and navigation
+functions as callable tools (see *Tool calling* below).
 
 It runs as one Android app on the phone — no computer required — and is
 designed **not to interfere with RayNeo's own voice integration** — see
@@ -29,13 +35,40 @@ your voice → glasses mic → RayNeo ASR → transcript (read-only from the pho
    phone from inside the app itself. This is what lets it read the glasses'
    transcripts with no PC in the loop — see *Installing the phone app* below
    for the full walkthrough.
-4. Paste a **Groq** API key (free at https://console.groq.com/keys) into the
-   app's settings. SerpApi, Spotify and the rest are optional, for live data
-   and music.
+4. Paste an **OpenAI** API key (https://platform.openai.com/api-keys) or a
+   **Groq** key (free at https://console.groq.com/keys) into the app's
+   settings and set the backend to match. SerpApi, Spotify and the rest are
+   optional, for live data and music.
 5. In RayNeo's own app, allow this app to post notifications to the glasses,
    so cards can actually reach the lens.
 6. Wear the glasses, press the **crown**, and ask — *"what's the weather in
    Oakland?"* The crown press is the trigger; there is no wake word to say.
+
+## Tool calling
+
+The built-in phrases (`Commands.java`) still run first — a recognised phrasing
+never costs a model round-trip. Anything they miss goes to the model with the
+assistant's own functions declared as tools (`Tools.java`): calendar,
+directions and web search to *read*; timers, reminders, to-dos, notes, music,
+radio, playback, navigation and a hand-off to the phone's own assistant to
+*act*. Three rules keep it honest on a one-line display:
+
+- **An action's own line is what you see.** `set_timer` runs the same code as
+  the regex path and returns `⏰ Timer set: Pasta in 12 min.`; that line goes
+  on the lens verbatim. The model's paraphrase never replaces it, so it cannot
+  drift ("Done, 5 minutes" about a 3-minute timer).
+- **The model says `OK` when it has nothing to add.** After a pure action it
+  replies with exactly that word, which is stripped; anything else it says is
+  the answer to the *other* half of a request and is appended — *"cancel the
+  pasta timer and is it going to rain tomorrow"* comes back as one card.
+- **Nothing is retained server-side.** The OpenAI path uses `/responses` with
+  `store: false`, echoing the model's own output back each round instead of
+  letting the service keep it.
+
+`gpt-5.6-luna` is the default OpenAI model: function calling at $0.20 per
+million input tokens, so a tool-calling turn (~100–200 tokens) is well under
+a cent. Groq's `openai/gpt-oss-120b` drives the same manifest for free. The
+`llm.tools` setting turns the whole thing off and restores plain Q&A.
 
 ## Independence from RayNeo's voice system
 

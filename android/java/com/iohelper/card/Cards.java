@@ -159,6 +159,16 @@ public final class Cards {
 
     /** A weather glyph on weather answers; never changes the words. */
     public static String decorate(String answer) {
+        if (!answer.isEmpty()) {
+            // Already carries a glyph - a tool's own "⏰ Cancelled: ..." line
+            // followed by a weather answer was getting "☂ ⏰ ..." stacked on
+            // it. One glyph per card; the first one wins.
+            int t = Character.getType(answer.charAt(0));
+            if (t == Character.OTHER_SYMBOL || t == Character.MATH_SYMBOL
+                    || t == Character.CURRENCY_SYMBOL) {
+                return answer;
+            }
+        }
         String low = answer.toLowerCase();
         if (!low.matches(".*(°|\\bdegrees\\b|\\bweather\\b|\\bforecast\\b|\\brain\\b|\\bsunny\\b|\\bcloudy\\b|\\bsnow\\b).*")) {
             return nonWeatherGlyph(answer, low);

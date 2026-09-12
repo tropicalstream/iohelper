@@ -202,7 +202,10 @@ public final class Search {
     }
 
     // ---- engines -----------------------------------------------------------
-    private static String webAnswer(Context ctx, String query, String location) {
+    // Package-private rather than private: Tools calls these two with
+    // STRUCTURED arguments (a destination, an origin, a mode) instead of
+    // re-deriving them from an utterance through classify().
+    static String webAnswer(Context ctx, String query, String location) {
         String p = "engine=google&q=" + enc(query) + "&hl=en&gl=us"
                 + (location != null && !location.isEmpty() ? "&location=" + enc(location) : "");
         JSONObject d = call(ctx, p, 20000);
@@ -229,9 +232,9 @@ public final class Search {
         return out.isEmpty() ? null : out.substring(0, Math.min(750, out.length()));
     }
 
-    private static String directions(Context ctx, String dest, String origin, String mode) {
+    static String directions(Context ctx, String dest, String origin, String mode) {
         int tm = 6;
-        switch (mode) {
+        switch (mode == null ? "" : mode) {
             case "drive": case "driving": case "car": tm = 0; break;
             case "bike": case "biking": case "cycling": tm = 1; break;
             case "walk": case "walking": tm = 2; break;

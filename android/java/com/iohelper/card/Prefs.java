@@ -19,7 +19,18 @@ public final class Prefs {
     public static final String GROQ_MODEL = "llm.groq_model";
     public static final String GEMINI_KEY = "llm.gemini_api_key";
     public static final String GEMINI_MODEL = "llm.gemini_model";
+    /** "groq" (default), "openai" or "gemini". */
     public static final String BACKEND = "llm.backend";
+    /** OpenAI platform key - one key serves the text models here and the voice
+     *  model a later front end will use. */
+    public static final String OPENAI_KEY = "llm.openai_api_key";
+    /** Default gpt-5.6-luna: function calling at a fifth of a cent per million
+     *  input tokens, which makes an assistant turn cost about a tenth of a cent. */
+    public static final String OPENAI_MODEL = "llm.openai_model";
+    public static final String OPENAI_BASE = "llm.openai_base_url";
+    /** Let the model ACT through tools (timers, lists, calendar, music, maps)
+     *  rather than only answer. Default on; off restores the plain Q&A path. */
+    public static final String TOOLS = "llm.tools";
     public static final String SERPAPI_KEY = "search.serpapi_key";
     public static final String SEARCH_LOCATION = "search.location";
     public static final String SEARCH_MODE = "search.mode";

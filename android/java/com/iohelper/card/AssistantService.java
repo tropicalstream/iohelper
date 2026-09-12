@@ -539,8 +539,29 @@ public class AssistantService extends Service {
                     + (notes.isEmpty() ? "" : "notes"));
         }
         String answer;
+        String kind = "answer";
         try {
-            answer = Llm.ask(this, prompt);
+            if (Prefs.bool(this, Prefs.TOOLS, true)) {
+                // The model may ACT here - set the timer, add the item, start
+                // the music - through the same functions the regexes reach.
+                // What comes back is already the line for the glasses: an
+                // action's own words, with the model's prose only where a
+                // question was answered too.
+                Llm.Turn turn = Llm.askWithTools(this, prompt);
+                answer = turn.render();
+                kind = turn.cardKind();
+                if (turn.calls > 0) {
+                    Log.i(TAG, "  tools: " + turn.calls + " call(s), "
+                            + turn.actions.size() + " action(s)");
+                }
+                if (answer.isEmpty() && turn.silent) {
+                    // A hand-off that draws its own cards; nothing to add.
+                    status("listening (wake word: " + Prefs.trigger(this) + ")");
+                    return;
+                }
+            } else {
+                answer = Llm.ask(this, prompt);
+            }
         } catch (Exception e) {
             Log.w(TAG, "llm: " + e);
             diagLastError = String.valueOf(e.getMessage());
@@ -549,6 +570,9 @@ public class AssistantService extends Service {
         }
         answer = Cards.decorate(Cards.sanitize(answer));
         if (answer.isEmpty()) {
+            // Nothing survived sanitising (an emoji-only reply); don't leave
+            // the status saying "thinking" until the next question.
+            status("listening (wake word: " + Prefs.trigger(this) + ")");
             return;
         }
         diagFired++;
@@ -562,7 +586,7 @@ public class AssistantService extends Service {
         }
         // Paged: a longer answer arrives as consecutive cards rather than
         // being clipped at the first one.
-        Cards.postSequence(this, Cards.title(this), answer, "answer");
+        Cards.postSequence(this, Cards.title(this), answer, kind);
         status("listening (wake word: " + Prefs.trigger(this) + ")");
     }
 

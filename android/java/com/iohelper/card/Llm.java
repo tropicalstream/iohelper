@@ -10,6 +10,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Groq and Gemini over plain HTTPS. Port of llm.py, minus the Claude backend -
@@ -25,6 +30,11 @@ public final class Llm {
 
     public static final String GROQ_URL = "https://api.groq.com/openai/v1";
     public static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta";
+    public static final String OPENAI_URL = "https://api.openai.com/v1";
+    /** Tool rounds per question. Two is the norm (call, then answer); six
+     *  leaves room for a multi-part request without letting a confused model
+     *  loop forever on the wearer's money. */
+    private static final int MAX_ROUNDS = 6;
     /**
      * Length is a budget, not a rule.
      *
@@ -108,6 +118,243 @@ public final class Llm {
         return "gemini".equals(backend) ? gemini(ctx, prompt) : groq(ctx, prompt);
     }
 
+    // ---- tool calling ----------------------------------------------------------
+
+    /**
+     * The system prompt for a model that can ACT. It replaces {@link #BRIEF},
+     * whose central rule - "you cannot perform actions" - is exactly what is
+     * no longer true. The rest of BRIEF's hard-won lessons carry over: plain
+     * text, a length budget rather than a length rule, and no invented
+     * specifics.
+     */
+    public static final String AGENT =
+            "You are the voice assistant for a pair of smart glasses whose only display "
+            + "is one short line of text; the user is usually walking or driving. You ACT "
+            + "by calling tools, and only by calling tools: never say you have set, added, "
+            + "played, started, cancelled or changed anything unless a tool result confirms "
+            + "it. Use tools rather than guessing: the user's schedule -> get_calendar; "
+            + "travel time, traffic or a commute -> get_directions; weather, scores, prices, "
+            + "opening hours, news or any live fact -> search_web; timers, reminders, "
+            + "to-dos, notes, music, radio, playback, navigation -> their tools; a phone "
+            + "function not listed (flashlight, texting, calling, alarms) -> "
+            + "ask_phone_assistant. Do not ask clarifying questions - make a sensible "
+            + "choice and act. Never call the same tool twice with the same arguments. "
+            + "Calendar lines or live search results already in the message answer the "
+            + "question - use them rather than fetching again. "
+            + "Reply in plain text: no lists, no markdown, no line breaks. Default to ONE "
+            + "short sentence under 90 characters; use up to three short sentences and 300 "
+            + "characters only when the detail is the point, most useful first. When an "
+            + "action tool has run, its own result line is already on the glasses: if "
+            + "nothing else was asked, reply with exactly the word OK and nothing more; "
+            + "if something else was asked, answer only that and never restate what the "
+            + "tool did. Use only what tools and the "
+            + "context give you; never invent times, prices, addresses or advice. If a "
+            + "tool reports a failure, say so plainly.";
+
+    /** What a tool-assisted turn produced. */
+    public static final class Turn {
+        /** The model's final words; may be empty after an action. */
+        public String text = "";
+        /** Each action tool's own result line, in the order they ran. */
+        public final List<String> actions = new ArrayList<>();
+        public int calls;
+        public int queries;
+        /** An action drew its own cards (the assistant hand-off); show nothing. */
+        public boolean silent;
+        /** Card kind of the action that ran: "timer" keeps the countdown bar
+         *  alive, exactly as the regex path posts it. */
+        public String kind = "answer";
+
+        /**
+         * The model's words minus the agreed "nothing more" token. AGENT asks
+         * for exactly "OK" after a pure action, so that reply is a signal, not
+         * text - it was the only way to tell "I have nothing to add" from an
+         * answer to the second half of a request without guessing from
+         * length. A leading "OK." on a real answer is trimmed.
+         */
+        public String prose() {
+            String t = text == null ? "" : text.trim();
+            return t.replaceFirst("(?i)^ok(?:ay)?(?=$|[\\s.!,])[\\s.!,]*", "").trim();
+        }
+
+        /**
+         * The line for the glasses. An action's line is ground truth and is
+         * never replaced by the model's paraphrase of it; whatever the model
+         * added beyond OK is appended, because it is the answer to the other
+         * thing that was asked.
+         */
+        public String render() {
+            String t = prose();
+            if (actions.isEmpty()) {
+                // A hand-off that draws its own cards is authoritative: the
+                // model's sign-off must not land on top of them.
+                return silent && queries == 0 ? "" : t;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (String a : actions) {
+                if (sb.length() > 0) {
+                    sb.append(" · ");
+                }
+                sb.append(a);
+            }
+            return t.isEmpty() ? sb.toString() : sb + " " + t;
+        }
+
+        /** The card kind for what render() returns. */
+        public String cardKind() {
+            return "timer".equals(kind) && queries == 0 && prose().isEmpty() ? "timer" : "answer";
+        }
+    }
+
+    /**
+     * Ask, with the model free to call the assistant's functions (see
+     * {@link Tools}). Groq speaks OpenAI's chat/completions shape; OpenAI's own
+     * models take tools on /responses only - measured: chat/completions
+     * refuses "function tools with reasoning_effort" for gpt-5.6 - so each
+     * backend gets its native loop, over one shared manifest and dispatcher.
+     * Gemini has no tool loop here and answers as before.
+     */
+    public static Turn askWithTools(Context ctx, String prompt) throws Exception {
+        String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
+        if ("gemini".equals(backend)) {
+            Turn t = new Turn();
+            t.text = gemini(ctx, prompt);
+            return t;
+        }
+        // The model has no clock and no map. "Tomorrow" and "how far" are
+        // unanswerable without both.
+        String where = Loc.context(ctx);
+        String system = AGENT + " Now: " + new SimpleDateFormat("EEEE d MMMM yyyy, h:mm a",
+                Locale.US).format(new Date()) + "." + (where == null ? "" : " " + where);
+        Turn turn = "openai".equals(backend)
+                ? responsesLoop(ctx, system, prompt)
+                : chatLoop(ctx, system, prompt);
+        if (turn.render().isEmpty() && !turn.silent) {
+            // Rounds ran out, or the model went quiet after a failed tool. A
+            // blank card would read as the assistant being dead.
+            turn.text = "Couldn't complete that.";
+        }
+        return turn;
+    }
+
+    /** Text of a chat message, tolerating JSON null (a tool-call turn has none). */
+    private static String contentOf(JSONObject msg) {
+        return msg == null || msg.isNull("content") ? "" : msg.optString("content", "").trim();
+    }
+
+    /** Groq: OpenAI-compatible chat/completions with tools. */
+    private static Turn chatLoop(Context ctx, String system, String prompt) throws Exception {
+        String key = Prefs.str(ctx, Prefs.GROQ_KEY, "");
+        if (key.isEmpty()) {
+            throw new LlmException("Groq API key not set");
+        }
+        String model = Prefs.str(ctx, Prefs.GROQ_MODEL, "openai/gpt-oss-120b");
+        JSONArray msgs = new JSONArray();
+        msgs.put(new JSONObject().put("role", "system").put("content", system));
+        msgs.put(new JSONObject().put("role", "user").put("content", prompt));
+        Turn turn = new Turn();
+        for (int round = 0; round < MAX_ROUNDS; round++) {
+            JSONObject body = new JSONObject();
+            body.put("model", model);
+            body.put("temperature", 0.3);
+            body.put("max_tokens", 1024);
+            if (model.matches("(?i).*(gpt-oss|qwen3\\.8|deepseek|r1).*")) {
+                body.put("reasoning_effort", "low");
+            }
+            body.put("tools", Tools.chatManifest());
+            body.put("tool_choice", "auto");
+            body.put("messages", msgs);
+            String resp = http(GROQ_URL + "/chat/completions", "POST", body.toString(), key, 45000);
+            JSONObject msg = new JSONObject(resp).getJSONArray("choices").getJSONObject(0)
+                    .getJSONObject("message");
+            JSONArray calls = msg.optJSONArray("tool_calls");
+            String content = contentOf(msg);
+            if (calls == null || calls.length() == 0) {
+                turn.text = content;
+                return turn;
+            }
+            // Echo a CLEAN assistant turn, not the server's message verbatim:
+            // vendor extras (reasoning text and the like) are not part of the
+            // request schema and some servers reject them.
+            JSONObject echo = new JSONObject().put("role", "assistant").put("tool_calls", calls);
+            echo.put("content", content.isEmpty() ? JSONObject.NULL : content);
+            msgs.put(echo);
+            for (int i = 0; i < calls.length(); i++) {
+                JSONObject c = calls.getJSONObject(i);
+                JSONObject fn = c.getJSONObject("function");
+                String result = Tools.call(ctx, fn.optString("name", ""),
+                        fn.optString("arguments", ""), turn);
+                msgs.put(new JSONObject().put("role", "tool")
+                        .put("tool_call_id", c.optString("id", "")).put("content", result));
+            }
+        }
+        return turn;
+    }
+
+    /**
+     * OpenAI: /responses with tools, no server-side storage. Everything the
+     * model emits - reasoning (carried as encrypted content), the function
+     * calls, any message - is echoed back with the tool outputs appended, so
+     * each round is self-contained and nothing about the wearer's day is
+     * retained between requests.
+     */
+    private static Turn responsesLoop(Context ctx, String system, String prompt) throws Exception {
+        String key = Prefs.str(ctx, Prefs.OPENAI_KEY, "");
+        if (key.isEmpty()) {
+            throw new LlmException("OpenAI API key not set");
+        }
+        String base = Prefs.str(ctx, Prefs.OPENAI_BASE, OPENAI_URL).replaceAll("/+$", "");
+        String model = Prefs.str(ctx, Prefs.OPENAI_MODEL, "gpt-5.6-luna");
+        JSONArray input = new JSONArray();
+        input.put(new JSONObject().put("role", "user").put("content", prompt));
+        Turn turn = new Turn();
+        for (int round = 0; round < MAX_ROUNDS; round++) {
+            JSONObject body = new JSONObject();
+            body.put("model", model);
+            body.put("instructions", system);
+            body.put("input", input);
+            body.put("tools", Tools.responsesManifest());
+            body.put("tool_choice", "auto");
+            body.put("max_output_tokens", 1024);
+            body.put("store", false);
+            body.put("reasoning", new JSONObject().put("effort", "low"));
+            body.put("include", new JSONArray().put("reasoning.encrypted_content"));
+            String resp = http(base + "/responses", "POST", body.toString(), key, 45000);
+            JSONArray output = new JSONObject(resp).getJSONArray("output");
+            List<JSONObject> calls = new ArrayList<>();
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < output.length(); i++) {
+                JSONObject item = output.getJSONObject(i);
+                String type = item.optString("type", "");
+                if ("function_call".equals(type)) {
+                    calls.add(item);
+                } else if ("message".equals(type)) {
+                    JSONArray parts = item.optJSONArray("content");
+                    for (int p = 0; parts != null && p < parts.length(); p++) {
+                        JSONObject part = parts.optJSONObject(p);
+                        if (part != null && "output_text".equals(part.optString("type", ""))) {
+                            text.append(part.optString("text", ""));
+                        }
+                    }
+                }
+            }
+            if (calls.isEmpty()) {
+                turn.text = text.toString().trim();
+                return turn;
+            }
+            for (int i = 0; i < output.length(); i++) {
+                input.put(output.getJSONObject(i));
+            }
+            for (JSONObject c : calls) {
+                String result = Tools.call(ctx, c.optString("name", ""),
+                        c.optString("arguments", ""), turn);
+                input.put(new JSONObject().put("type", "function_call_output")
+                        .put("call_id", c.optString("call_id", "")).put("output", result));
+            }
+        }
+        return turn;
+    }
+
     private static String groq(Context ctx, String prompt) throws Exception {
         String key = Prefs.str(ctx, Prefs.GROQ_KEY, "");
         if (key.isEmpty()) {
@@ -118,8 +365,8 @@ public final class Llm {
         body.put("model", model);
         body.put("temperature", 0.3);
         body.put("max_tokens", 1024);
-        if (model.matches("(?i).*(gpt-oss|qwen|deepseek|r1).*")) {
-            body.put("reasoning_effort", "low");
+        if (model.matches("(?i).*(gpt-oss|qwen3\\.8|deepseek|r1).*")) {
+            body.put("reasoning_effort", "low");   // other qwen3 ids accept only none/default
         }
         JSONArray msgs = new JSONArray();
         // Give the model the phone's position: "how far is that", "is it open",
@@ -282,8 +529,8 @@ public final class Llm {
         body.put("temperature", 0);
         body.put("max_tokens", maxTokens);  // gpt-oss spends hidden reasoning tokens; keep room
         body.put("response_format", new JSONObject().put("type", "json_object"));
-        if (model.matches("(?i).*(gpt-oss|qwen|deepseek|r1).*")) {
-            body.put("reasoning_effort", "low");
+        if (model.matches("(?i).*(gpt-oss|qwen3\\.8|deepseek|r1).*")) {
+            body.put("reasoning_effort", "low");   // other qwen3 ids accept only none/default
         }
         JSONArray msgs = new JSONArray();
         msgs.put(new JSONObject().put("role", "system").put("content", system));
@@ -361,11 +608,15 @@ public final class Llm {
                     }
                 }
             } else {
-                String key = Prefs.str(ctx, Prefs.GROQ_KEY, "");
+                boolean openai = "openai".equals(backend);
+                String key = Prefs.str(ctx, openai ? Prefs.OPENAI_KEY : Prefs.GROQ_KEY, "");
                 if (key.isEmpty()) {
                     return out;
                 }
-                JSONObject o = new JSONObject(http(GROQ_URL + "/models", "GET", null, key, 15000));
+                String base = openai
+                        ? Prefs.str(ctx, Prefs.OPENAI_BASE, OPENAI_URL).replaceAll("/+$", "")
+                        : GROQ_URL;
+                JSONObject o = new JSONObject(http(base + "/models", "GET", null, key, 15000));
                 JSONArray a = o.getJSONArray("data");
                 for (int i = 0; i < a.length(); i++) {
                     out.add(a.getJSONObject(i).getString("id"));

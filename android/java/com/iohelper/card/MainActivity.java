@@ -70,10 +70,22 @@ public class MainActivity extends Activity {
 
         root.addView(heading2("Services"));
         LinearLayout keys = card(root);
+        final EditText backend = field(keys, "LLM backend (groq | openai | gemini)",
+                Prefs.str(this, Prefs.BACKEND, "groq"), false);
+        final EditText openaiKey = field(keys, "OpenAI API key",
+                Prefs.str(this, Prefs.OPENAI_KEY, ""), true);
+        final EditText openaiModel = field(keys, "OpenAI model",
+                Prefs.str(this, Prefs.OPENAI_MODEL, "gpt-5.6-luna"), false);
         final EditText groqKey = field(keys, "Groq API key",
                 Prefs.str(this, Prefs.GROQ_KEY, ""), true);
         final EditText groqModel = field(keys, "Groq model",
                 Prefs.str(this, Prefs.GROQ_MODEL, "openai/gpt-oss-120b"), false);
+        toggle(keys, "Let the model act (tools)", Prefs.TOOLS, true);
+        keys.addView(hint("With tools on, a request the built-in phrases miss still "
+                + "gets done: the model calls the same timer, list, calendar, "
+                + "music, radio and navigation functions with proper arguments. "
+                + "openai (gpt-5.6-luna) costs about a tenth of a cent a question; "
+                + "groq is free and can call the same functions."));
         final EditText serpKey = field(keys, "SerpApi key",
                 Prefs.str(this, Prefs.SERPAPI_KEY, ""), true);
         final EditText location = field(keys, "Location (fallback when GPS is unavailable)",
@@ -139,6 +151,10 @@ public class MainActivity extends Activity {
                 Prefs.put(MainActivity.this, Prefs.WAKE_TRIGGER, trigger.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.WAKE_MANGLES, mangles.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.WAKE_SOURCE, source.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.BACKEND, backend.getText().toString()
+                        .trim().toLowerCase(java.util.Locale.ROOT));
+                Prefs.put(MainActivity.this, Prefs.OPENAI_KEY, openaiKey.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.OPENAI_MODEL, openaiModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_KEY, groqKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_MODEL, groqModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SERPAPI_KEY, serpKey.getText().toString().trim());

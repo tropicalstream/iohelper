@@ -109,6 +109,37 @@ public final class Agenda {
         }
     }
 
+    /**
+     * Remove the calendar copy of a reminder, matched by title AND due time.
+     * Title alone would be too loose - a timer called "dentist" must not take
+     * out the mirrored copy of a real dentist appointment - and the due time
+     * gets a few seconds' slack because it was stamped a moment after the
+     * store's own fire_at. Deleting the event takes its alarm row with it.
+     */
+    static void remove(Context ctx, String title, long dueMs) {
+        if (!allowed(ctx) || title == null || title.trim().isEmpty()) {
+            return;
+        }
+        try {
+            long cal = calendarId(ctx);
+            if (cal < 0) {
+                return;
+            }
+            // The sync-adapter URI, for the reason prune() gives: the plain
+            // one only flags the row deleted, and nothing ever collects it.
+            int n = ctx.getContentResolver().delete(sync(CalendarContract.Events.CONTENT_URI),
+                    CalendarContract.Events.CALENDAR_ID + "=? AND "
+                            + CalendarContract.Events.TITLE + "=? AND "
+                            + CalendarContract.Events.DTSTART + " BETWEEN ? AND ?",
+                    new String[]{String.valueOf(cal), title.trim(),
+                            String.valueOf(dueMs - 5000L), String.valueOf(dueMs + 5000L)});
+            if (n > 0) {
+                Mirror.onDataChanged();
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     /** Find our calendar, creating it the first time. -1 if it cannot be made. */
     static long calendarId(Context ctx) {
         Uri uri = sync(CalendarContract.Calendars.CONTENT_URI);

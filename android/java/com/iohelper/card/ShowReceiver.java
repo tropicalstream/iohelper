@@ -102,7 +102,14 @@ public class ShowReceiver extends BroadcastReceiver {
                         int n = 0;
                         for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) {
                             String k = it.next();
-                            Prefs.putTyped(app, k, o.getString(k));
+                            Object v = o.get(k);
+                            // getString() threw on a JSON boolean or number, and
+                            // one bad value aborted the whole file. Take every
+                            // value as text; putTyped re-types the booleans.
+                            if (v == org.json.JSONObject.NULL) {
+                                continue;
+                            }
+                            Prefs.putTyped(app, k, String.valueOf(v));
                             n++;
                         }
                         LocalAdb.shell(app, "rm -f " + path, 6000);
