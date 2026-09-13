@@ -149,6 +149,12 @@ public class TalkService extends Service {
     private volatile boolean ducking;
     /** Let the track finish its last words before the music comes back up. */
     private static final long UNDUCK_AFTER_MS = 1200;
+    /** The wearer's own media level, put back exactly as it was. -1 = not held. */
+    private int duckedFrom = -1;
+    /** Their call level, likewise: the model's voice plays on that stream. */
+    private int savedCallVol = -1;
+    /** What the music drops TO, as a fraction of wherever they had it. */
+    private static final double DUCK_TO = 0.25;
     /** Released when the server confirms the session is closed. */
     private final CountDownLatch closed = new CountDownLatch(1);
 
@@ -366,6 +372,21 @@ public class TalkService extends Service {
         // and this model listens while it speaks - without it, the phone would
         // hear itself and answer its own answers.
         am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        // The model's voice plays on the CALL stream (that pairing with the
+        // VOICE_COMMUNICATION capture is what gets the echo canceller), and
+        // that stream keeps its own level - often low, and nothing to do with
+        // the media volume the wearer is used to. Bring it up for the session
+        // and put it back afterwards.
+        try {
+            savedCallVol = am.getStreamVolume(AudioManager.STREAM_VOICE_CALL);
+            int max = am.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL);
+            int want = (int) Math.round(max * 0.85);
+            if (want > savedCallVol) {
+                am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, want, 0);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "call volume: " + e);
+        }
         route(am, true);
         int inMin = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
@@ -389,6 +410,7 @@ public class TalkService extends Service {
         if (track.getState() != AudioTrack.STATE_INITIALIZED) {
             throw new IllegalStateException("speaker unavailable");
         }
+        track.setVolume(AudioTrack.getMaxVolume());  // the stream level is the only dial
     }
 
     /**
@@ -460,9 +482,13 @@ public class TalkService extends Service {
         track = null;
         playQ.clear();
         try {
-            duck(false);
+            duck(false);                             // gives the media volume back
             AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
             route(am, false);
+            if (savedCallVol >= 0) {
+                am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, savedCallVol, 0);
+                savedCallVol = -1;
+            }
             am.setMode(savedMode);
         } catch (Exception ignored) {
         }
@@ -527,9 +553,28 @@ public class TalkService extends Service {
                         .setOnAudioFocusChangeListener(change -> { })
                         .build();
                 am.requestAudioFocus(focus);
-            } else if (focus != null) {
-                am.abandonAudioFocusRequest(focus);
-                focus = null;
+                // Asking politely is not enough: the system's own ducking is
+                // gentle, and the voice comes out of the CALL stream while the
+                // music is on the media stream, so the wearer had a quiet
+                // assistant under loud music. Take the media stream down
+                // properly, and put it back exactly where they had it.
+                if (duckedFrom < 0) {
+                    int now = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    if (now > 0) {
+                        duckedFrom = now;
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC,
+                                Math.max(1, (int) Math.round(now * DUCK_TO)), 0);
+                    }
+                }
+            } else {
+                if (duckedFrom >= 0) {
+                    am.setStreamVolume(AudioManager.STREAM_MUSIC, duckedFrom, 0);
+                    duckedFrom = -1;
+                }
+                if (focus != null) {
+                    am.abandonAudioFocusRequest(focus);
+                    focus = null;
+                }
             }
             ducking = on;
             Log.i(TAG, on ? "  ducking other audio while it speaks" : "  audio back up");
