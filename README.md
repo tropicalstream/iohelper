@@ -44,6 +44,13 @@ your voice → glasses mic → RayNeo ASR → transcript (read-only from the pho
 6. Wear the glasses, press the **crown**, and ask — *"what's the weather in
    Oakland?"* The crown press is the trigger; there is no wake word to say.
 
+> **Set it up and it says "listening" but nothing happens?** Don't start
+> changing settings — one command says which of five things is wrong. See
+> *[It says "listening" but nothing happens](#it-says-listening-but-nothing-happens)*.
+> Note that this needs **iO** glasses (`com.rayneo.venus.pub`); the X3 app is a
+> different protocol. Sideloading on Android 13+ also needs **Allow restricted
+> settings**, which Samsung hides under Apps → Jarvis → ⋮.
+
 ## Talking to it (GPT-Live on the phone)
 
 The big button at the top of the app opens a **live voice conversation with
@@ -703,6 +710,84 @@ ordinary app sees ~51 lines where adb sees 4154 — and adbd only talks to a key
 it already trusts. Before pairing worked, the only way to get this app's key
 into `/data/misc/adb/adb_keys` was the "Allow debugging?" prompt on a USB cable.
 Pairing puts it there over Wi-Fi instead, once, and it survives reboots.
+
+## It says "listening" but nothing happens
+
+The most common report from someone setting this up on their own phone, and
+almost always the same fault. **One command tells you which of five things is
+wrong** — do this before changing anything:
+
+```bash
+adb shell am broadcast -n com.iohelper.card/.ShowReceiver -a com.iohelper.card.DIAG
+adb logcat -d | grep -o 'status=[^"]*' | tail -1
+```
+
+That prints `status=… lines=N heard=N fired=N`, and the three counters are the
+whole diagnosis:
+
+| What you see | What it means | Where to look |
+| --- | --- | --- |
+| `lines=0` | The adb bridge connected but the log stream is empty. | Pairing/bridge — see *Installing the phone app* |
+| `lines` large, **`heard=0`** | Reading the log fine, but **the glasses' transcript never arrives**. | The two checks below — this is nearly always it |
+| `heard>0`, `fired=0` | Transcripts arrive; the wake gate rejects them. | Wake word: say it at the **END** of the sentence |
+| `fired>0`, no API calls | The assistant answered but the model was never reached. | `llm.backend` and the matching key |
+| `fired>0`, cards but nothing on the lens | Everything works; the relay is off. | Allow this app in RayNeo's own notification list |
+
+### If `heard=0` — the usual case
+
+Press the crown, say something, then check whether the glasses emitted anything
+at all:
+
+```bash
+adb logcat -d | grep -c phone_asr_text
+adb shell pm list packages | grep -i rayneo
+```
+
+**If the count is 0**, the transcript line iohelper waits for was never written.
+The exact signature it matches, from the **iO** companion app, is:
+
+```
+phone_asr_text … payload={…,"final":true,"text":"…"} eventTs=…
+```
+
+Two things produce a zero count:
+
+- **Wrong glasses.** `com.rayneo.venus.pub` is the **iO** app and is what this is
+  built against. `com.rayneo.mercury` is the **X3** app — a different protocol
+  entirely, and it will not work as-is. If only `mercury` is listed, that is the
+  whole answer.
+- **Wrong source.** `wake.source` must be `assistant` (the crown press). The
+  `alwayson` / Life Log stream is broken in iO firmware 1.0.3.11 — measured:
+  audio reaches the phone and `alwaysOnRunning` is true, but
+  `onAlwaysOnResponse` never fires. Crown is the only working channel.
+
+### Things that are *not* the problem
+
+- **"Samsung must be blocking logcat."** It is not. This is developed and used
+  daily on a Galaxy S23 Ultra. An ordinary app cannot read other apps' logcat on
+  **any** Android — `logd` filters the buffer by UID (measured: 51 lines visible
+  to the app, 4154 to adb) — which is exactly why this embeds an ADB client and
+  reads as the shell UID. If the bridge says `listening`, that part is working.
+- **Captions working means the voice path works.** It does not. YouTube captions
+  come from an AccessibilityService reading the screen; they use neither adb nor
+  the glasses' microphone. Captions arriving on the lens proves your *display*
+  path and accessibility are fine while saying nothing about ASR.
+
+### Finding "Allow restricted settings" on Samsung
+
+Android 13+ blocks a sideloaded app from being granted Accessibility or
+Notification access until you unblock it, and Samsung puts it somewhere other
+than Pixel does: **Settings → Apps → Jarvis → ⋮ (top right) → Allow restricted
+settings.** The toggle in Accessibility simply will not stick until then, with
+no error shown.
+
+### The path that avoids all of this
+
+**Voice mode does not use the glasses' microphone, logcat, or the ASR path at
+all** — it is the phone's own mic and speaker (see *Talking to it*), with the
+same tool-calling brain, and answers still land on the lens as cards. If the
+glasses' transcript path is the thing fighting you, that whole class of problem
+is simply absent there.
 
 ## Running it away from Wi-Fi
 
