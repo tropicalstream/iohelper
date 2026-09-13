@@ -131,6 +131,8 @@ public class TalkService extends Service {
      */
     private static final long QUESTION_TTL_MS = 12000;
     private volatile long lastActivity;
+    /** When the model was last heard speaking - the proof an answer landed. */
+    private volatile long spokeAt;
     private final Meter userMeter = new Meter();
     private final Meter botMeter = new Meter();
     private int seq;
@@ -555,6 +557,7 @@ public class TalkService extends Service {
                     playQ.offer(pcm);
                 }
                 lastActivity = System.currentTimeMillis();
+                spokeAt = lastActivity;
                 break;
             }
             case "session.input_transcript.delta": {
@@ -676,7 +679,7 @@ public class TalkService extends Service {
         try {
             String q = takeQuestion();
             if (q.isEmpty()) {
-                commentary(id, "I didn't catch what you asked.");
+                deliver(id, "I didn't catch what you asked.");
                 return;
             }
             Log.i(TAG, "delegated: " + q);
@@ -689,12 +692,12 @@ public class TalkService extends Service {
             }
             AssistantService.Reply r = AssistantService.respond(this, q, said);
             if (r.error != null) {
-                commentary(id, "I couldn't reach the assistant right now.");
+                deliver(id, "I couldn't reach the assistant right now.");
                 return;
             }
             String line = r.line == null ? "" : r.line;
             if (line.isEmpty()) {
-                commentary(id, r.silent ? "Done, I handed that to the phone." : "Nothing to report.");
+                deliver(id, r.silent ? "Done, I handed that to the phone." : "Nothing to report.");
                 return;
             }
             // The glasses get the same card a crown-press answer would.
@@ -706,10 +709,10 @@ public class TalkService extends Service {
             // commentary tells the model nothing at all - it would sit waiting
             // on a delegation that was in fact finished.
             String say = spoken(line);
-            commentary(id, say.isEmpty() ? "Done." : say);
+            deliver(id, say);
         } catch (Throwable t) {
             Log.w(TAG, "delegate: " + t);
-            commentary(id, "Something went wrong with that.");
+            deliver(id, "Something went wrong with that.");
         } finally {
             // The silence that counts starts when the answer lands, not when
             // the question was asked.
@@ -781,16 +784,66 @@ public class TalkService extends Service {
         return out.length() > 600 ? out.substring(0, 600) : out;
     }
 
-    private void commentary(String delegationId, String content) {
+    private boolean commentary(String delegationId, String content) {
         try {
             JSONObject o = new JSONObject().put("type", "session.commentary.append")
                     .put("event_id", "c" + (++seq))
                     .put("delegation_id", delegationId == null ? JSONObject.NULL : delegationId)
                     .put("content", content);
             send(o);
+            return true;
         } catch (Exception e) {
             Log.w(TAG, "commentary: " + e);
+            return false;
         }
+    }
+
+    /**
+     * Hand the answer over and MAKE SURE IT GETS SAID.
+     *
+     * A client delegation has no documented completion signal, no timeout and
+     * no error for one that never lands - so when an answer failed to reach
+     * the model, or reached it and did not move it to speak, the session sat
+     * there having said "checking" until the wearer prodded it. Nothing in the
+     * protocol recovers from that, so this does: the model speaking produces
+     * audio, and if none arrives the answer is repeated on the general channel
+     * (delegation_id null), which is always a valid target. Twice at most, and
+     * only while nothing has been heard - a model that did answer is never
+     * talked over.
+     */
+    private void deliver(String delegationId, String content) {
+        if (content == null || content.trim().isEmpty()) {
+            content = "Done.";
+        }
+        long sent = System.currentTimeMillis();
+        commentary(delegationId, content);
+        if (spoke(sent, 5000)) {
+            return;
+        }
+        Log.i(TAG, "no speech after the delegation reply - repeating on the session channel");
+        sent = System.currentTimeMillis();
+        commentary(null, content);
+        if (spoke(sent, 5000)) {
+            return;
+        }
+        Log.w(TAG, "still silent - nudging once more");
+        commentary(null, "Say this to the user now: " + content);
+    }
+
+    /** Whether the model was heard speaking after `since`, within the wait. */
+    private boolean spoke(long since, long waitMs) {
+        long deadline = System.currentTimeMillis() + waitMs;
+        while (running && System.currentTimeMillis() < deadline) {
+            if (spokeAt > since) {
+                return true;
+            }
+            try {
+                Thread.sleep(150);
+            } catch (InterruptedException e) {
+                return true;                         // shutting down; don't repeat
+            }
+        }
+        return spokeAt > since;
     }
 
     private void send(JSONObject o) throws Exception {

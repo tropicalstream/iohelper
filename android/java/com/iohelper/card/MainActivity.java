@@ -161,6 +161,12 @@ public class MainActivity extends Activity {
                 Prefs.str(this, Prefs.GROQ_KEY, ""), true);
         final EditText groqModel = field(keys, "Groq model",
                 Prefs.str(this, Prefs.GROQ_MODEL, "openai/gpt-oss-120b"), false);
+        final EditText talkVoice = field(keys, "GPT-Live voice",
+                Prefs.str(this, Prefs.TALK_VOICE, "marin"), false);
+        keys.addView(hint("The voice the talk button speaks with. Verified against the "
+                + "API: marin (default), cedar, quartz, ripple, vesper, willow, stone, "
+                + "gleam, meridian, bossa, tempo, beacon, delta, cinder. Takes effect on "
+                + "the next session - a voice cannot be changed once one is running."));
         toggle(keys, "Let the model act (tools)", Prefs.TOOLS, true);
         keys.addView(hint("With tools on, a request the built-in phrases miss still "
                 + "gets done: the model calls the same timer, list, calendar, "
@@ -236,6 +242,8 @@ public class MainActivity extends Activity {
                         .trim().toLowerCase(java.util.Locale.ROOT));
                 Prefs.put(MainActivity.this, Prefs.OPENAI_KEY, openaiKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.OPENAI_MODEL, openaiModel.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.TALK_VOICE,
+                        talkVoice.getText().toString().trim().toLowerCase(java.util.Locale.ROOT));
                 Prefs.put(MainActivity.this, Prefs.GROQ_KEY, groqKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_MODEL, groqModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SERPAPI_KEY, serpKey.getText().toString().trim());
