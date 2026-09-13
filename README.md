@@ -65,6 +65,14 @@ radio, playback, navigation and a hand-off to the phone's own assistant to
   `store: false`, echoing the model's own output back each round instead of
   letting the service keep it.
 
+A **compound request** — a second request after *and / then / also* or a
+comma, followed by a question word or a verb (*"set a timer for two minutes
+and also tell me the weather"*) — skips the built-in phrases and goes straight
+to the model, which does both halves. A bare *and* joining nouns does not
+count: *"simon and garfunkel"*, *"an hour and a half"*, *"fifth and mission"*
+still take the fast path. If the model can't be reached, the half the phrases
+understood is done anyway.
+
 `gpt-5.6-luna` is the default OpenAI model: function calling at $0.20 per
 million input tokens, so a tool-calling turn (~100–200 tokens) is well under
 a cent. Groq's `openai/gpt-oss-120b` drives the same manifest for free. The

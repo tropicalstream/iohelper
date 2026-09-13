@@ -48,7 +48,13 @@ public final class CommandsProbe {
 
             String got;
             String detail;
-            try {
+            // "compound" / "single" exercise the second-request detector that
+            // decides whether the patterns run at all (Commands.compound),
+            // rather than the parser.
+            if ("compound".equals(expected) || "single".equals(expected)) {
+                got = Commands.compound(utterance) ? "compound" : "single";
+                detail = "-";
+            } else try {
                 Commands.Cmd c = Commands.parse(utterance);
                 if (c == null) {
                     got = "none";

@@ -674,6 +674,32 @@ public final class Commands {
         return secs >= 60 ? (secs / 60) + " min" : secs + " sec";
     }
 
+    /**
+     * A SECOND request in the same breath: "set a timer for two minutes and
+     * also tell me the weather", "cancel the pasta timer, is it going to
+     * rain?". Each pattern in {@link #parse} understands one request, and
+     * handed a compound one it takes the first half and swallows the rest into
+     * its label ("Timer set: kick off egg and also tell weather in 2 min").
+     * A model with tools does both halves, so when one is available a compound
+     * utterance skips the patterns entirely.
+     *
+     * The test is a conjunction FOLLOWED BY A REQUEST-SHAPED WORD - a question
+     * word or a verb - because a bare "and" joins nouns far more often than
+     * clauses: "simon and garfunkel", "bread and butter", "fifth and mission",
+     * "an hour and a half" all stay single.
+     */
+    private static final Pattern COMPOUND = Pattern.compile(
+            "(?i)(?:\\b(?:and|then|plus)\\s+(?:also\\s+|then\\s+)?|,\\s*(?:and\\s+|also\\s+)?|\\balso\\s+)"
+            + "(?:what|what's|whats|how|how's|when|when's|where|where's|who|who's|which|why"
+            + "|is|are|am|do|does|did|can|could|will|would|should"
+            + "|tell|show|give|let|remind|set|start|play|put|add|cancel|stop|skip|pause|resume"
+            + "|turn|find|check|read|list|navigate|take|text|send|open|search|look|call|make"
+            + "|note|jot|mark|tick|cross|delete|remove|end|get|book|order)\\b");
+
+    public static boolean compound(String text) {
+        return text != null && COMPOUND.matcher(text).find();
+    }
+
     public static Cmd parse(String text) {
         String t = text.trim();
         String low = t.toLowerCase();

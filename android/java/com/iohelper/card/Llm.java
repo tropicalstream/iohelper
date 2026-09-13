@@ -237,6 +237,16 @@ public final class Llm {
         return turn;
     }
 
+    /** Whether {@link #askWithTools} has a backend and a key to work with. */
+    public static boolean toolsAvailable(Context ctx) {
+        String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
+        if ("gemini".equals(backend)) {
+            return false;
+        }
+        return !Prefs.str(ctx, "openai".equals(backend) ? Prefs.OPENAI_KEY : Prefs.GROQ_KEY, "")
+                .isEmpty();
+    }
+
     /** Text of a chat message, tolerating JSON null (a tool-call turn has none). */
     private static String contentOf(JSONObject msg) {
         return msg == null || msg.isNull("content") ? "" : msg.optString("content", "").trim();

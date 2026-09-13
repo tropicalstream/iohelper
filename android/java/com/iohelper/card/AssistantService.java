@@ -474,9 +474,18 @@ public class AssistantService extends Service {
     }
 
     private void answer(String query) {
-        // Timers and to-dos are handled locally - no LLM, no network.
-        Commands.Cmd cmd = Commands.parse(query);
-        if (cmd != null) {
+        // Timers and to-dos are handled locally - no LLM, no network...
+        final Commands.Cmd cmd = Commands.parse(query);
+        // ...unless the utterance carries a SECOND request and a model with
+        // tools is there to take it. The phrase patterns understand one request
+        // each and swallow the rest into a label ("Timer set: kick off egg and
+        // also tell weather"); the model does both halves. See Commands.compound.
+        final boolean compound = Prefs.bool(this, Prefs.TOOLS, true)
+                && Llm.toolsAvailable(this) && Commands.compound(query);
+        if (compound) {
+            Log.i(TAG, "  compound request" + (cmd == null ? "" : " (skipping " + cmd.kind + ")"));
+        }
+        if (cmd != null && !compound) {
             String line = Commands.run(this, cmd);
             Log.i(TAG, "  command: " + line);
             if (line != null) {
@@ -491,7 +500,7 @@ public class AssistantService extends Service {
             return;
         }
         // "what are my to-dos" is answered from the store, not the model
-        if (query.toLowerCase().matches(".*\\b(to-?dos?|task list|my tasks)\\b.*")
+        if (!compound && query.toLowerCase().matches(".*\\b(to-?dos?|task list|my tasks)\\b.*")
                 && query.toLowerCase().matches(".*\\b(what|list|show|any|read)\\b.*")) {
             Cards.post(this, Cards.title(this), Proactive.todoSummary(this));
             return;
@@ -564,6 +573,20 @@ public class AssistantService extends Service {
             }
         } catch (Exception e) {
             Log.w(TAG, "llm: " + e);
+            if (cmd != null) {
+                // The model was preferred for a compound request and could not
+                // be reached. Do the part the phrase patterns understood rather
+                // than nothing at all - a timer with a clumsy label beats no
+                // timer.
+                String line = Commands.run(this, cmd);
+                Log.i(TAG, "  fallback command: " + line);
+                if (line != null) {
+                    Cards.post(this, Cards.title(this), line,
+                            "timer".equals(cmd.kind) ? "timer" : "answer");
+                }
+                status("listening (wake word: " + Prefs.trigger(this) + ")");
+                return;
+            }
             diagLastError = String.valueOf(e.getMessage());
             status("llm error: " + e.getMessage());
             return;

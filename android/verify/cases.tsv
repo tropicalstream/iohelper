@@ -357,3 +357,26 @@ ask gemini to set a timer for 3 minutes	assist.open
 ask android to play music	assist.open
 ask gemini to text sarah i am running late	assist.open
 ask android to turn on the flashlight	assist.open
+
+# --- compound requests: a second request after a conjunction goes to the model ---
+kick off a two minute egg timer and also tell me the weather	compound
+please cancel the pasta timer and is it going to rain tomorrow	compound
+set a timer for 5 minutes and then play some jazz	compound
+play jazz and turn it up	compound
+set a timer for ten minutes, what's the traffic to work	compound
+add milk to my list also what's on my calendar tomorrow	compound
+navigate to the airport and text mom that I'm on my way	compound
+pause the music and remind me to call the dentist	compound
+start a countdown for 3 minutes and let me know when it's up	compound
+# --- and these must stay single: 'and' joining nouns, not requests ---
+play simon and garfunkel	single
+add bread and butter to my list	single
+set a timer for an hour and a half	single
+navigate to fifth and mission	single
+play earth wind and fire	single
+remind me to call tom and jerry	single
+set a timer for 10 minutes and 30 seconds	single
+play rock and roll	single
+what's the weather in oakland	single
+remind me to pet the dog at 11:20 AM, Jarvis.	single
+navigate to 5 main street, oakland	single
