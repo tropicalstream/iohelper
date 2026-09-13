@@ -1205,12 +1205,27 @@ public final class Commands {
     }
 
 
+    /**
+     * A play phrase that only POINTS at something - "that album", "it", "the
+     * one you mentioned" - names nothing at all, and searching for its words
+     * finds whatever happens to contain them: "that album" found "That's The
+     * Spirit". It has to be resolved against the conversation, so it counts
+     * as descriptive. Anchored at both ends on purpose: "that's the spirit"
+     * is a title and must stay one.
+     */
+    private static final Pattern ANAPHORA = Pattern.compile(
+            "(?i)^\\s*(?:(?:the\\s+)?(?:same|that|this|those|it)"
+            + "(?:\\s+(?:one|album|record|song|track|artist|band|playlist|thing))?"
+            + "|the\\s+one\\s+(?:you|we|i|that)\\b.*"
+            + "|the\\s+(?:album|song|track|record)\\s+(?:you|we)\\b.*"
+            + "|(?:the\\s+)?(?:first|second|third|last)\\s+one)\\s*$");
+
     /** Does this play phrase describe a release rather than name it outright? */
     static boolean isDescriptive(String descr, String contentType) {
         if (descr == null || descr.trim().isEmpty()) {
             return false;
         }
-        if (DESC_STRONG.matcher(descr).find()) {
+        if (ANAPHORA.matcher(descr).find() || DESC_STRONG.matcher(descr).find()) {
             return true;
         }
         return DESC_ORDINAL.matcher(descr).find()
@@ -1381,7 +1396,7 @@ public final class Commands {
         // above have decided what kind of request this is, and only for the
         // resolver that has to name a release.
         String ask = said == null || said.trim().isEmpty() ? descr
-                : descr + ". The assistant has already told the user: \"" + said.trim() + "\"";
+                : descr + "\n\nContext:\n" + said.trim();
         org.json.JSONObject r = Llm.resolveMusic(ctx, ask,
                 ("album".equals(contentType) || "playlist".equals(contentType)) ? "album" : null);
         if (r == null) {

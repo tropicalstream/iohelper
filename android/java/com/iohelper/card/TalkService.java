@@ -121,6 +121,41 @@ public class TalkService extends Service {
     private final LinkedBlockingQueue<byte[]> playQ = new LinkedBlockingQueue<>();
     private final StringBuilder pendingUser = new StringBuilder();
     private final StringBuilder saying = new StringBuilder();
+    /**
+     * The last few turns, both sides, oldest first - the backend's memory.
+     *
+     * GPT-Live remembers the conversation; the backend was only ever handed
+     * the current sentence. So "go ahead and play that album", a turn after
+     * the model had named one, arrived as the bare words "that album", was
+     * searched for literally, and played "That's The Spirit". Whatever the
+     * user or the model said in the last few turns now travels with every
+     * delegation, and "that" can mean what it meant.
+     */
+    private final java.util.ArrayDeque<String> history = new java.util.ArrayDeque<>();
+    private static final int HISTORY_TURNS = 8;
+
+    /** Record one side of a turn; call with the pendingUser monitor held. */
+    private void remember(String who, CharSequence what) {
+        String w = what == null ? "" : what.toString().trim();
+        if (w.isEmpty()) {
+            return;
+        }
+        String entry = who + ": " + (w.length() > 300 ? w.substring(0, 300) + "…" : w);
+        if (entry.equals(history.peekLast())) {
+            return;
+        }
+        history.addLast(entry);
+        while (history.size() > HISTORY_TURNS) {
+            history.pollFirst();
+        }
+    }
+
+    /** The recent conversation as text, or "" when there is none yet. */
+    private String recent() {
+        synchronized (pendingUser) {
+            return history.isEmpty() ? "" : String.join("\n", history);
+        }
+    }
     private volatile String lastUser = "";
     private volatile long lastUserAt;
     /**
@@ -583,28 +618,46 @@ public class TalkService extends Service {
         }
     }
 
+    /** A chunk with a voice in it, as opposed to the silence the stream carries between words. */
+    private static boolean loud(byte[] pcm, int len) {
+        long sum = 0;
+        int n = 0;
+        for (int i = 0; i + 1 < len; i += 2) {
+            int s = (short) ((pcm[i] & 0xFF) | (pcm[i + 1] << 8));
+            sum += (long) s * s;
+            n++;
+        }
+        return n > 0 && Math.sqrt((double) sum / n) > 300;   // ~ -41 dBFS; speech is far above
+    }
+
     private void playback() {
         try {
             track.play();
-            long lastAudio = 0;
+            long lastVoice = 0;
             while (running) {
                 byte[] b = playQ.poll(200, TimeUnit.MILLISECONDS);
-                if (b == null) {
-                    // Quiet for long enough that the model has finished: let
-                    // whatever was playing come back up to volume.
-                    if (ducking && lastAudio > 0
-                            && System.currentTimeMillis() - lastAudio > UNDUCK_AFTER_MS) {
-                        duck(false);
+                long now = System.currentTimeMillis();
+                if (b != null) {
+                    // Metered here, at write time, so the bars move with what
+                    // is being heard rather than with what arrived.
+                    botMeter.feed(b, b.length, botLevels);
+                    botLevelAt = now;
+                    if (loud(b, b.length)) {
+                        lastVoice = now;
                     }
-                    continue;
+                    track.write(b, 0, b.length);
                 }
-                lastAudio = System.currentTimeMillis();
-                duck(true);
-                // Metered here, at write time, so the bars move with what is
-                // being heard rather than with what arrived.
-                botMeter.feed(b, b.length, botLevels);
-                botLevelAt = System.currentTimeMillis();
-                track.write(b, 0, b.length);
+                // Ducked by what is HEARD, not by what arrives: the stream keeps
+                // delivering frames between sentences and while the model is
+                // just listening, so "audio arrived" held the music down for the
+                // whole session. A voice in the frame is what counts, and a
+                // short hold after the last word keeps the level from pumping
+                // between sentences.
+                if (lastVoice > 0 && now - lastVoice <= UNDUCK_AFTER_MS) {
+                    duck(true);
+                } else if (ducking) {
+                    duck(false);
+                }
             }
         } catch (Exception e) {
             if (running) {
@@ -651,6 +704,8 @@ public class TalkService extends Service {
                     // it as the last question in case a delegation follows the
                     // acknowledgement rather than preceding it.
                     if (pendingUser.length() > 0) {
+                        remember("Assistant", saying);   // the turn just ending
+                        remember("User", pendingUser);
                         lastUser = pendingUser.toString();
                         lastUserAt = System.currentTimeMillis();
                         pendingUser.setLength(0);
@@ -720,6 +775,8 @@ public class TalkService extends Service {
                 if (pendingUser.length() > 0) {
                     String q = pendingUser.toString().trim();
                     pendingUser.setLength(0);
+                    remember("Assistant", saying);       // the turn just ending
+                    remember("User", q);
                     // This turn's authority starts NOW. `saying` is otherwise
                     // only cleared when the model starts speaking while a
                     // question is still pending - and taking the question here
@@ -785,7 +842,7 @@ public class TalkService extends Service {
             if (!said.isEmpty()) {
                 Log.i(TAG, "  gpt-live said: " + said);
             }
-            AssistantService.Reply r = AssistantService.respond(this, q, said);
+            AssistantService.Reply r = AssistantService.respond(this, q, said, recent());
             if (r.error != null) {
                 deliver(id, "I couldn't reach the assistant right now.");
                 return;

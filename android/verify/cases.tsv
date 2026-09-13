@@ -434,3 +434,17 @@ play signature	literal
 # --- but describe a release and they resolve ---
 play depeche mode's biggest album	descriptive
 play the biggest album by abba	descriptive
+
+# --- a play phrase that only POINTS ('that album') must be resolved, never searched for ---
+play that album	descriptive
+go ahead and play that album	compound
+play it	descriptive
+play that one	descriptive
+play the one you mentioned	descriptive
+play the album you just said	descriptive
+play the second one	descriptive
+# --- and titles that merely START with those words stay literal ---
+play that's the spirit	literal
+play this is america	literal
+play it's my life	literal
+play the same deep water as you	literal

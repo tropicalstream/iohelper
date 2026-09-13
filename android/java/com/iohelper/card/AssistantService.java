@@ -526,16 +526,34 @@ public class AssistantService extends Service {
      *             descriptive play, and the model as an instruction otherwise.
      */
     static Reply respond(Context ctx, String query, String said) {
+        return respond(ctx, query, said, null);
+    }
+
+    /**
+     * @param recent the last few turns of the live conversation, both sides,
+     *               or null. The backend has no memory of its own, and "play
+     *               that album" means nothing without the turn in which an
+     *               album was named.
+     */
+    static Reply respond(Context ctx, String query, String said, String recent) {
         Reply r = new Reply();
         // Timers and to-dos are handled locally - no LLM, no network...
         final Commands.Cmd cmd = Commands.parse(query);
-        if (cmd != null && said != null && !said.trim().isEmpty() && cmd.descr != null
+        String context = "";
+        if (recent != null && !recent.trim().isEmpty()) {
+            context = "Recent conversation, most recent last:\n" + recent.trim();
+        }
+        if (said != null && !said.trim().isEmpty()) {
+            context += (context.isEmpty() ? "" : "\n")
+                    + "The assistant has just told the user: \"" + said.trim() + "\"";
+        }
+        if (cmd != null && !context.isEmpty() && cmd.descr != null
                 && ("media.play".equals(cmd.kind) || "sonos.play".equals(cmd.kind))
                 && Commands.isDescriptive(cmd.descr, cmd.contentType)) {
             // Its own field, NOT descr: descr is what the curated/descriptive
             // classifiers read, and free prose in it re-reads the request.
-            cmd.said = said.trim();
-            Log.i(TAG, "  play resolved with the voice model's own words");
+            cmd.said = context;
+            Log.i(TAG, "  play resolved against the conversation");
         }
         // ...unless the utterance carries a SECOND request and a model with
         // tools is there to take it. The phrase patterns understand one request
@@ -562,6 +580,11 @@ public class AssistantService extends Service {
             return r;
         }
         String prompt = contextual(ctx, query);
+        if (recent != null && !recent.trim().isEmpty()) {
+            prompt += "\n\nRecent conversation between the user and the voice assistant, most "
+                    + "recent last - resolve 'that', 'it', 'the one you mentioned' against it:\n"
+                    + recent.trim();
+        }
         if (said != null && !said.trim().isEmpty()) {
             // Authoritative about the SUBJECT, never about the FACTS. The voice
             // model names what the user meant - which album, which place, which
