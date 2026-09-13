@@ -22,17 +22,26 @@ The whole app is one `Activity` (`LaunchActivity`), no permissions, no
 network, no UI:
 
 ```java
-Intent i = new Intent("com.iohelper.card.TALK");
-i.setClassName("com.iohelper.card", "com.iohelper.card.ShowReceiver");
-sendBroadcast(i);
+Intent i = new Intent();
+i.setClassName("com.iohelper.card", "com.iohelper.card.TalkActivity");
+i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+startActivity(i);
 finish();
 ```
 
-`com.iohelper.card.TALK` is a broadcast action iohelper's `ShowReceiver`
-already exposes (exported, no permission required) - the very thing this
-project already used to test the talk toggle from adb. This app is nothing
-more than a tap-free way to fire that same broadcast. If iohelper ever changes
-what that toggle does, this app needs no changes at all.
+`TalkActivity` is iohelper's own invisible toggle - same package as the voice
+service, so it can simply call it. If iohelper ever changes what that toggle
+does, this app needs no changes at all.
+
+**It starts an activity rather than sending a broadcast, and that matters.**
+iohelper also exposes a `TALK` *broadcast*, and using it looked correct - but
+a broadcast receiver is a **background context**, so when it tried to bring
+iohelper up, Android refused: `Background activity launch blocked!
+goo.gle/android-bal`. The shortcut did nothing at all, silently. This
+activity was started by the user's own press, so it is foreground and may
+start another. (The bug hid behind a bad test: it "worked" while iohelper
+happened to be open in the foreground already. Test this cold - everything
+force-stopped, sitting on the home screen - or it proves nothing.)
 
 ## Building and installing
 

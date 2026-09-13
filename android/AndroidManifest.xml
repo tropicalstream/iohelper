@@ -71,12 +71,25 @@
             </intent-filter>
         </activity>
 
-        <!-- The side-button shortcut lives in a SEPARATE package now
-             (../android-talk) - Samsung's own hardware-button "Apps" picker
-             (Settings > Advanced features > Side button) turned out to
-             enumerate one entry per PACKAGE, not per launcher activity within
-             one, so a second Activity here was invisible to it even though
-             the home screen showed it fine. See android-talk/README.md. -->
+        <!-- Toggles the live voice session and shows nothing. Deliberately has
+             NO launcher intent-filter and no icon: the icon a hardware
+             shortcut binds to lives in a separate package (../android-talk),
+             because Samsung's side-button "Apps" picker enumerates one entry
+             per PACKAGE, not per launcher activity. That app starts THIS
+             activity directly.
+
+             Why it has to be an activity here rather than the broadcast
+             receiver below: a receiver is a background context, and Android
+             blocks background activity launches ("Background activity launch
+             blocked! goo.gle/android-bal"), so routing the shortcut through
+             ShowReceiver reached iohelper and then died silently. An activity
+             started by the user's own tap is foreground, may start the
+             service, and - being in this package - can simply call it. -->
+        <activity
+            android:name=".TalkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay" />
 
         <!-- specialUse: a personal assistant reading a debug stream; none of the
              standard FGS types (camera, location, mediaPlayback...) describe it. -->

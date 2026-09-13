@@ -2,8 +2,6 @@
 <resources>
     <!-- This IS the header shown on the glasses. build.py can override it. -->
     <string name="app_name">Jarvis</string>
-    <!-- The side-button shortcut's own launcher entry - see TalkActivity. -->
-    <string name="talk_name">Jarvis Talk</string>
     <!-- Shown in Settings > Accessibility next to the toggle. -->
     <string name="caption_service_desc">Reads the captions YouTube is already showing on screen and mirrors them to the glasses. Reads nothing from any other app, and never turns captions on by itself.</string>
 </resources>
