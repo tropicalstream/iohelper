@@ -1,6 +1,5 @@
-<!-- The second launcher icon, for the side-button shortcut: same dark tile as
-     the main app, a microphone instead of the glasses, so the two are told
-     apart at a glance in an app picker despite sharing a label prefix. -->
+<!-- Same dark tile as iohelper's own icon, a microphone instead of the
+     glasses, so the two are told apart at a glance despite the shared name. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="48dp"
     android:height="48dp"

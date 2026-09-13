@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A ONE-JOB app: appear as its own icon, so it can be bound directly to a
+     hardware shortcut (the Galaxy's side button), and when launched, toggle
+     iohelper's live voice session and disappear.
+
+     WHY A SEPARATE PACKAGE. Samsung's own side-button "Apps" picker
+     (Settings > Advanced features > Side button > Double press > Apps) turns
+     out to enumerate one entry per installed PACKAGE, not per launcher
+     activity within a package - confirmed on-device: a second Activity added
+     to iohelper itself showed up as its own icon on the home screen (Android's
+     normal launcher mechanism), but never appeared in that specific Samsung
+     picker. A genuinely separate package is the only thing that picker will
+     list on its own.
+
+     WHY IT NEEDS NO PERMISSIONS. It never touches the microphone, the
+     network, or anything else - it sends one local broadcast to iohelper's
+     already-exported, already-permission-less ShowReceiver and closes. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.iohelper.talk"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_talk"
+        android:allowBackup="false"
+        android:hasCode="true">
+
+        <activity
+            android:name=".LaunchActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
