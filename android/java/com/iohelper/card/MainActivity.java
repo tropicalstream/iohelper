@@ -22,6 +22,8 @@ import io.github.muntashirakon.adb.android.AdbMdns;
 public class MainActivity extends Activity {
 
     private TextView statusView;
+    /** The one control that matters: listening or not, one tap to flip it. */
+    private Button talkButton;
 
     private static final int BG = Color.parseColor("#0B0D12");
     private static final int CARD = Color.parseColor("#161A24");
@@ -35,6 +37,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        // The page draws its own heading; the system bar was repeating it.
+        if (getActionBar() != null) {
+            getActionBar().hide();
+        }
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(BG);
         LinearLayout root = new LinearLayout(this);
@@ -44,6 +50,29 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         root.addView(heading(Cards.title(this)));
+        // First and unmistakable. Start and Stop used to be two more purple
+        // buttons under the settings - the place nobody looks in a hurry, and
+        // where "I clicked stop and nothing happened" came from. One big
+        // control at the top that SHOWS the state and flips it on a tap.
+        talkButton = new Button(this);
+        talkButton.setAllCaps(false);
+        talkButton.setTextSize(17);
+        talkButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        talkButton.setStateListAnimator(null);
+        talkButton.setPadding(dp(16), dp(16), dp(16), dp(16));
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.topMargin = dp(4);
+        tlp.bottomMargin = dp(12);
+        talkButton.setLayoutParams(tlp);
+        talkButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleListening();
+            }
+        });
+        root.addView(talkButton);
+
         statusView = new TextView(this);
         statusView.setTextColor(MUTED);
         statusView.setTextSize(12);
@@ -163,27 +192,6 @@ public class MainActivity extends Activity {
                 Prefs.put(MainActivity.this, Prefs.SPOTIFY_SECRET, spotifySecret.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.YOUTUBE_KEY, youtubeKey.getText().toString().trim());
                 Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
-                refresh();
-            }
-        });
-
-        Button start = button(root, "Start listening");
-        start.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                AssistantService.start(MainActivity.this);
-                Toast.makeText(MainActivity.this,
-                        "Starting - accept 'Allow debugging?' if it appears",
-                        Toast.LENGTH_LONG).show();
-                refresh();
-            }
-        });
-
-        Button stop = button(root, "Stop");
-        stop.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                AssistantService.stop(MainActivity.this);
                 refresh();
             }
         });
@@ -404,8 +412,42 @@ public class MainActivity extends Activity {
         refresh();
     }
 
+    /** Flip listening on or off from the top button. */
+    private void toggleListening() {
+        boolean running = Prefs.bool(this, Prefs.RUNNING, false);
+        if (running) {
+            AssistantService.stop(this);
+            Toast.makeText(this, "Stopped listening", Toast.LENGTH_SHORT).show();
+        } else {
+            AssistantService.start(this);
+            Toast.makeText(this, "Starting - accept 'Allow debugging?' if it appears",
+                    Toast.LENGTH_LONG).show();
+        }
+        refresh();
+        // The service flips RUNNING on its own schedule - a moment after
+        // start, in onDestroy after stop - so look again once it has had the
+        // chance, or the button would keep showing the state just left.
+        Runnable again = new Runnable() {
+            @Override
+            public void run() {
+                refresh();
+            }
+        };
+        talkButton.postDelayed(again, 1500);
+        talkButton.postDelayed(again, 5000);
+    }
+
     private void refresh() {
         boolean running = Prefs.bool(this, Prefs.RUNNING, false);
+        if (talkButton != null) {
+            talkButton.setText(running ? "●  Listening  —  tap to stop"
+                    : "○  Tap to start listening");
+            talkButton.setTextColor(running ? OK : Color.WHITE);
+            // Green and quiet while it is up; the accent while it is not,
+            // because "start" is then the thing to do.
+            talkButton.setBackground(surface(running ? Color.parseColor("#0F2A1E") : ACCENT,
+                    running ? Color.parseColor("#1E5C41") : 0, 14));
+        }
         statusView.setText((running ? "● listening" : "○ stopped")
                 + "   ·   wake word: " + Prefs.trigger(this)
                 + "   ·   source: " + Prefs.source(this)
