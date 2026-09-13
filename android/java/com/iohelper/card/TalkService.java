@@ -145,6 +145,10 @@ public class TalkService extends Service {
     private final java.util.concurrent.atomic.AtomicInteger inFlight =
             new java.util.concurrent.atomic.AtomicInteger();
     private android.media.AudioFocusRequest focus;
+    /** True while the music is being held down for the model's voice. */
+    private volatile boolean ducking;
+    /** Let the track finish its last words before the music comes back up. */
+    private static final long UNDUCK_AFTER_MS = 1200;
     /** Released when the server confirms the session is closed. */
     private final CountDownLatch closed = new CountDownLatch(1);
 
@@ -362,22 +366,6 @@ public class TalkService extends Service {
         // and this model listens while it speaks - without it, the phone would
         // hear itself and answer its own answers.
         am.setMode(AudioManager.MODE_IN_COMMUNICATION);
-        // Ask for focus, or music already playing keeps going at full volume -
-        // under the model's voice AND into the microphone, where it becomes
-        // transcript. TRANSIENT rather than exclusive: a station the wearer's
-        // own request just started should duck, not die.
-        try {
-            focus = new android.media.AudioFocusRequest.Builder(
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                    .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                    .setOnAudioFocusChangeListener(change -> { })
-                    .build();
-            am.requestAudioFocus(focus);
-        } catch (Exception e) {
-            Log.w(TAG, "focus: " + e);
-        }
         route(am, true);
         int inMin = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
@@ -472,12 +460,9 @@ public class TalkService extends Service {
         track = null;
         playQ.clear();
         try {
+            duck(false);
             AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
             route(am, false);
-            if (focus != null) {
-                am.abandonAudioFocusRequest(focus);
-                focus = null;
-            }
             am.setMode(savedMode);
         } catch (Exception ignored) {
         }
@@ -517,14 +502,59 @@ public class TalkService extends Service {
         ws.send("{\"type\":\"session.input_audio.append\",\"audio\":\"" + b64 + "\"}");
     }
 
+    /**
+     * Hold the music down while the model talks, and let it back up when it
+     * stops - rather than for the whole session.
+     *
+     * A request the wearer just made often STARTS music, and then they say
+     * something else; without this the track plays at full volume under the
+     * reply and into the microphone, where it becomes transcript. Ducking
+     * rather than pausing, because the music was asked for: it drops under the
+     * voice and comes back on its own.
+     */
+    private void duck(boolean on) {
+        if (on == ducking) {
+            return;
+        }
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (on) {
+                focus = new android.media.AudioFocusRequest.Builder(
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                        .setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                        .setOnAudioFocusChangeListener(change -> { })
+                        .build();
+                am.requestAudioFocus(focus);
+            } else if (focus != null) {
+                am.abandonAudioFocusRequest(focus);
+                focus = null;
+            }
+            ducking = on;
+            Log.i(TAG, on ? "  ducking other audio while it speaks" : "  audio back up");
+        } catch (Exception e) {
+            Log.w(TAG, "duck: " + e);
+        }
+    }
+
     private void playback() {
         try {
             track.play();
+            long lastAudio = 0;
             while (running) {
                 byte[] b = playQ.poll(200, TimeUnit.MILLISECONDS);
                 if (b == null) {
+                    // Quiet for long enough that the model has finished: let
+                    // whatever was playing come back up to volume.
+                    if (ducking && lastAudio > 0
+                            && System.currentTimeMillis() - lastAudio > UNDUCK_AFTER_MS) {
+                        duck(false);
+                    }
                     continue;
                 }
+                lastAudio = System.currentTimeMillis();
+                duck(true);
                 // Metered here, at write time, so the bars move with what is
                 // being heard rather than with what arrived.
                 botMeter.feed(b, b.length, botLevels);
@@ -676,6 +706,26 @@ public class TalkService extends Service {
 
     private void delegate(String id) {
         inFlight.incrementAndGet();                  // before takeQuestion: it sleeps too
+        final long began = System.currentTimeMillis();
+        // Say SOMETHING if the model didn't. It is meant to acknowledge as it
+        // delegates, and usually does - but when it doesn't, the wearer gets
+        // silence for as long as the backend takes, which on a resolved-then-
+        // verified music request was half a minute. Measured on device: asked
+        // to play a particular recording, the session said nothing at all
+        // until it was prodded. These only fire while the model has stayed
+        // silent since the question, so a normal "one sec" suppresses them.
+        Thread patience = new Thread(() -> {
+            if (!spoke(began, 3500) && running) {
+                Log.i(TAG, "  silent since the question - asking it to acknowledge");
+                commentary(id, "Tell the user you are still looking that up.");
+                if (!spoke(System.currentTimeMillis(), 16000) && running) {
+                    Log.i(TAG, "  still silent - asking again");
+                    commentary(id, "Tell the user it is taking a little longer than usual.");
+                }
+            }
+        }, "talk-patience");
+        patience.setDaemon(true);
+        patience.start();
         try {
             String q = takeQuestion();
             if (q.isEmpty()) {
