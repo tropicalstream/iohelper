@@ -473,44 +473,97 @@ public class AssistantService extends Service {
         answer(query);
     }
 
-    private void answer(String query) {
+    /** What the assistant decided to say, and how it got there. */
+    static final class Reply {
+        /** The line for the glasses; null or empty when there is nothing to show. */
+        String line;
+        String kind = "answer";
+        /** An action drew its own cards; nothing more to show or say. */
+        boolean silent;
+        /** Set when the model could not be reached and nothing else applied. */
+        String error;
+        /** command | todos | model | fallback - which path answered. */
+        String via = "model";
+    }
+
+    /**
+     * The whole pipeline minus the posting: phrase patterns first, the model
+     * with tools for what they miss (or for a compound request), the context
+     * blocks in between. Shared by the crown channel ({@link #answer}) and the
+     * live voice session ({@link TalkService}), which delegates to it and
+     * speaks the result. One brain, two mouths.
+     */
+    static Reply respond(Context ctx, String query) {
+        Reply r = new Reply();
         // Timers and to-dos are handled locally - no LLM, no network...
         final Commands.Cmd cmd = Commands.parse(query);
         // ...unless the utterance carries a SECOND request and a model with
         // tools is there to take it. The phrase patterns understand one request
         // each and swallow the rest into a label ("Timer set: kick off egg and
         // also tell weather"); the model does both halves. See Commands.compound.
-        final boolean compound = Prefs.bool(this, Prefs.TOOLS, true)
-                && Llm.toolsAvailable(this) && Commands.compound(query);
+        final boolean compound = Prefs.bool(ctx, Prefs.TOOLS, true)
+                && Llm.toolsAvailable(ctx) && Commands.compound(query);
         if (compound) {
             Log.i(TAG, "  compound request" + (cmd == null ? "" : " (skipping " + cmd.kind + ")"));
         }
         if (cmd != null && !compound) {
-            String line = Commands.run(this, cmd);
-            Log.i(TAG, "  command: " + line);
-            if (line != null) {
-                if ("assistant".equals(Prefs.source(this))
-                        && Prefs.bool(this, Prefs.DEFER_NATIVE, true)) {
-                    Cards.waitNativeIdle(this);
-                }
-                Cards.post(this, Cards.title(this), line,
-                        "timer".equals(cmd.kind) ? "timer" : "answer");
-            }
-            status("listening (wake word: " + Prefs.trigger(this) + ")");
-            return;
+            r.line = Commands.run(ctx, cmd);
+            r.kind = "timer".equals(cmd.kind) ? "timer" : "answer";
+            r.silent = r.line == null;
+            r.via = "command";
+            Log.i(TAG, "  command: " + r.line);
+            return r;
         }
         // "what are my to-dos" is answered from the store, not the model
         if (!compound && query.toLowerCase().matches(".*\\b(to-?dos?|task list|my tasks)\\b.*")
                 && query.toLowerCase().matches(".*\\b(what|list|show|any|read)\\b.*")) {
-            Cards.post(this, Cards.title(this), Proactive.todoSummary(this));
-            return;
+            r.line = Proactive.todoSummary(ctx);
+            r.via = "todos";
+            return r;
         }
+        String prompt = contextual(ctx, query);
+        try {
+            if (Prefs.bool(ctx, Prefs.TOOLS, true)) {
+                // The model may ACT here - set the timer, add the item, start
+                // the music - through the same functions the regexes reach.
+                // What comes back is already the line for the glasses: an
+                // action's own words, with the model's prose only where a
+                // question was answered too.
+                Llm.Turn turn = Llm.askWithTools(ctx, prompt);
+                r.line = turn.render();
+                r.kind = turn.cardKind();
+                r.silent = r.line.isEmpty() && turn.silent;
+                if (turn.calls > 0) {
+                    Log.i(TAG, "  tools: " + turn.calls + " call(s), "
+                            + turn.actions.size() + " action(s)");
+                }
+            } else {
+                r.line = Llm.ask(ctx, prompt);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "llm: " + e);
+            if (cmd != null) {
+                // The model was preferred for a compound request and could not
+                // be reached. Do the part the phrase patterns understood rather
+                // than nothing at all - a timer with a clumsy label beats no
+                // timer.
+                r.line = Commands.run(ctx, cmd);
+                r.kind = "timer".equals(cmd.kind) ? "timer" : "answer";
+                r.silent = r.line == null;
+                r.via = "fallback";
+                Log.i(TAG, "  fallback command: " + r.line);
+                return r;
+            }
+            r.error = String.valueOf(e.getMessage());
+        }
+        return r;
+    }
 
-        status("thinking: " + query);
-        String prompt = query;
+    /** The query with the context blocks the model may need in front of it. */
+    static String contextual(Context ctx, String query) {
         String ctxBlock = "";
         try {
-            ctxBlock = Search.context(this, query);
+            ctxBlock = Search.context(ctx, query);
         } catch (Exception e) {
             Log.w(TAG, "search: " + e);
         }
@@ -519,7 +572,7 @@ public class AssistantService extends Service {
             // Windowed on what was ASKED. A question naming a day gets that
             // day, not a rolling window that fills with today's events before
             // it ever reaches the day in question.
-            cal = Cal.snapshotFor(this, query);
+            cal = Cal.snapshotFor(ctx, query);
         } catch (Exception e) {
             Log.w(TAG, "calendar: " + e);
         }
@@ -531,85 +584,62 @@ public class AssistantService extends Service {
         String todos = "";
         String notes = "";
         try {
-            todos = Store.todoSnapshot(this);
-            notes = Notes.snapshot(this);
+            todos = Store.todoSnapshot(ctx);
+            notes = Notes.snapshot(ctx);
         } catch (Exception e) {
             Log.w(TAG, "store: " + e);
         }
-        if (!ctxBlock.isEmpty() || !cal.isEmpty() || !todos.isEmpty() || !notes.isEmpty()) {
-            prompt = (ctxBlock.isEmpty() ? "" : ctxBlock + "\n\n")
-                    + (cal.isEmpty() ? "" : cal + "\n\n")
-                    + (todos.isEmpty() ? "" : todos + "\n\n")
-                    + (notes.isEmpty() ? "" : notes + "\n\n")
-                    + "Using the context above only when relevant, answer: " + query;
-            Log.i(TAG, "  context: " + (ctxBlock.isEmpty() ? "" : "search ")
-                    + (cal.isEmpty() ? "" : "calendar ")
-                    + (todos.isEmpty() ? "" : "todos ")
-                    + (notes.isEmpty() ? "" : "notes"));
+        if (ctxBlock.isEmpty() && cal.isEmpty() && todos.isEmpty() && notes.isEmpty()) {
+            return query;
         }
-        String answer;
-        String kind = "answer";
-        try {
-            if (Prefs.bool(this, Prefs.TOOLS, true)) {
-                // The model may ACT here - set the timer, add the item, start
-                // the music - through the same functions the regexes reach.
-                // What comes back is already the line for the glasses: an
-                // action's own words, with the model's prose only where a
-                // question was answered too.
-                Llm.Turn turn = Llm.askWithTools(this, prompt);
-                answer = turn.render();
-                kind = turn.cardKind();
-                if (turn.calls > 0) {
-                    Log.i(TAG, "  tools: " + turn.calls + " call(s), "
-                            + turn.actions.size() + " action(s)");
-                }
-                if (answer.isEmpty() && turn.silent) {
-                    // A hand-off that draws its own cards; nothing to add.
-                    status("listening (wake word: " + Prefs.trigger(this) + ")");
-                    return;
-                }
-            } else {
-                answer = Llm.ask(this, prompt);
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "llm: " + e);
-            if (cmd != null) {
-                // The model was preferred for a compound request and could not
-                // be reached. Do the part the phrase patterns understood rather
-                // than nothing at all - a timer with a clumsy label beats no
-                // timer.
-                String line = Commands.run(this, cmd);
-                Log.i(TAG, "  fallback command: " + line);
-                if (line != null) {
-                    Cards.post(this, Cards.title(this), line,
-                            "timer".equals(cmd.kind) ? "timer" : "answer");
-                }
-                status("listening (wake word: " + Prefs.trigger(this) + ")");
-                return;
-            }
-            diagLastError = String.valueOf(e.getMessage());
-            status("llm error: " + e.getMessage());
+        Log.i(TAG, "  context: " + (ctxBlock.isEmpty() ? "" : "search ")
+                + (cal.isEmpty() ? "" : "calendar ")
+                + (todos.isEmpty() ? "" : "todos ")
+                + (notes.isEmpty() ? "" : "notes"));
+        return (ctxBlock.isEmpty() ? "" : ctxBlock + "\n\n")
+                + (cal.isEmpty() ? "" : cal + "\n\n")
+                + (todos.isEmpty() ? "" : todos + "\n\n")
+                + (notes.isEmpty() ? "" : notes + "\n\n")
+                + "Using the context above only when relevant, answer: " + query;
+    }
+
+    private void answer(String query) {
+        status("thinking: " + query);
+        Reply r = respond(this, query);
+        if (r.error != null) {
+            diagLastError = r.error;
+            status("llm error: " + r.error);
             return;
         }
-        answer = Cards.decorate(Cards.sanitize(answer));
-        if (answer.isEmpty()) {
-            // Nothing survived sanitising (an emoji-only reply); don't leave
-            // the status saying "thinking" until the next question.
+        String line = r.line == null ? "" : r.line;
+        boolean model = "model".equals(r.via);
+        if (model) {
+            line = Cards.decorate(Cards.sanitize(line));
+        }
+        if (line.isEmpty()) {
+            // A silent hand-off, or nothing survived sanitising (an emoji-only
+            // reply); don't leave the status saying "thinking".
             status("listening (wake word: " + Prefs.trigger(this) + ")");
             return;
         }
-        diagFired++;
-        diagLastAnswer = answer;
-        Log.i(TAG, "  answer: " + answer);
+        if (model) {
+            diagFired++;
+            diagLastAnswer = line;
+            Log.i(TAG, "  answer: " + line);
+        }
         // On the crown channel RayNeo answers too and its reply owns the
         // display, so hold ours until theirs has come and gone.
         if ("assistant".equals(Prefs.source(this))
                 && Prefs.bool(this, Prefs.DEFER_NATIVE, true)) {
             Cards.waitNativeIdle(this);
         }
-        // Paged: a longer answer arrives as consecutive cards rather than
-        // being clipped at the first one.
-        Cards.postSequence(this, Cards.title(this), answer, kind);
+        if (model) {
+            // Paged: a longer answer arrives as consecutive cards rather than
+            // being clipped at the first one.
+            Cards.postSequence(this, Cards.title(this), line, r.kind);
+        } else {
+            Cards.post(this, Cards.title(this), line, r.kind);
+        }
         status("listening (wake word: " + Prefs.trigger(this) + ")");
     }
 

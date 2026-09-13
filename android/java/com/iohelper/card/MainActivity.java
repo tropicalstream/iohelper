@@ -22,8 +22,26 @@ import io.github.muntashirakon.adb.android.AdbMdns;
 public class MainActivity extends Activity {
 
     private TextView statusView;
-    /** The one control that matters: listening or not, one tap to flip it. */
-    private Button talkButton;
+    /** Talk to GPT-Live: the phone's mic and speaker, the assistant's brain. */
+    private Button talkBtn;
+    private MeterView meter;
+    private TextView talkLine;
+    private boolean resumed;
+    private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    /** 20 fps while the screen is up: enough for bars to feel alive. */
+    private final Runnable tick = new Runnable() {
+        @Override
+        public void run() {
+            refreshTalk();
+            if (resumed) {
+                ui.postDelayed(this, 50);
+            }
+        }
+    };
+    private static final float[] ZERO = new float[TalkService.BANDS];
+    private static final int REQ_MIC = 7;
+    /** The glasses channel: reading crown-press transcripts, or not. */
+    private Button listenButton;
 
     private static final int BG = Color.parseColor("#0B0D12");
     private static final int CARD = Color.parseColor("#161A24");
@@ -50,28 +68,62 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         root.addView(heading(Cards.title(this)));
-        // First and unmistakable. Start and Stop used to be two more purple
-        // buttons under the settings - the place nobody looks in a hurry, and
-        // where "I clicked stop and nothing happened" came from. One big
-        // control at the top that SHOWS the state and flips it on a tap.
-        talkButton = new Button(this);
-        talkButton.setAllCaps(false);
-        talkButton.setTextSize(17);
-        talkButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        talkButton.setStateListAnimator(null);
-        talkButton.setPadding(dp(16), dp(16), dp(16), dp(16));
+        // First and unmistakable: talk. A live voice conversation with
+        // GPT-Live through the phone's mic and speaker, the assistant's own
+        // brain behind it, and a small spectrum beside the button that moves
+        // with whoever is speaking - purple for you, green for it.
+        LinearLayout talkRow = new LinearLayout(this);
+        talkRow.setOrientation(LinearLayout.HORIZONTAL);
+        talkRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(4);
+        talkRow.setLayoutParams(rlp);
+        meter = new MeterView(this);
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(dp(64), dp(44));
+        mlp.rightMargin = dp(10);
+        meter.setLayoutParams(mlp);
+        talkRow.addView(meter);
+        talkBtn = new Button(this);
+        talkBtn.setAllCaps(false);
+        talkBtn.setTextSize(17);
+        talkBtn.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        talkBtn.setStateListAnimator(null);
+        talkBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
+        talkBtn.setLayoutParams(new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        talkBtn.setOnClickListener(v -> toggleTalk());
+        talkRow.addView(talkBtn);
+        root.addView(talkRow);
+        talkLine = new TextView(this);
+        talkLine.setTextColor(MUTED);
+        talkLine.setTextSize(12);
+        talkLine.setLineSpacing(dp(2), 1f);
+        talkLine.setPadding(dp(4), dp(8), dp(4), 0);
+        talkLine.setVisibility(View.GONE);
+        root.addView(talkLine);
+
+        // The glasses channel - reading crown-press transcripts - second and
+        // quieter now that talking is the headline. Start and Stop used to be
+        // two more purple buttons under the settings, which is where "I
+        // clicked stop and nothing happened" came from.
+        listenButton = new Button(this);
+        listenButton.setAllCaps(false);
+        listenButton.setTextSize(14);
+        listenButton.setStateListAnimator(null);
+        listenButton.setPadding(dp(14), dp(11), dp(14), dp(11));
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        tlp.topMargin = dp(4);
+        tlp.topMargin = dp(10);
         tlp.bottomMargin = dp(12);
-        talkButton.setLayoutParams(tlp);
-        talkButton.setOnClickListener(new View.OnClickListener() {
+        listenButton.setLayoutParams(tlp);
+        listenButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 toggleListening();
             }
         });
-        root.addView(talkButton);
+        root.addView(listenButton);
 
         statusView = new TextView(this);
         statusView.setTextColor(MUTED);
@@ -399,6 +451,12 @@ public class MainActivity extends Activity {
             AssistantService.start(this);
             refresh();
         }
+        // The TALK broadcast lands here too: a microphone service may only be
+        // started from the foreground, and this screen is the foreground.
+        if (intent != null && intent.getBooleanExtra("talk", false)) {
+            intent.removeExtra("talk");
+            toggleTalk();
+        }
     }
 
     @Override
@@ -410,6 +468,144 @@ public class MainActivity extends Activity {
         // this is the natural moment to hand it back.
         AssistantService.promoteLocationType();
         refresh();
+        resumed = true;
+        ui.post(tick);
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        ui.removeCallbacks(tick);
+        super.onPause();
+    }
+
+    /** Start or end the live voice session from the talk button. */
+    private void toggleTalk() {
+        if (TalkService.instance != null) {
+            TalkService.stop(this);
+            refreshTalk();
+            return;
+        }
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+            return;
+        }
+        TalkService.start(this);
+        refreshTalk();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] grants) {
+        super.onRequestPermissionsResult(code, perms, grants);
+        if (code != REQ_MIC) {
+            return;
+        }
+        if (grants.length > 0 && grants[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            TalkService.start(this);
+        } else {
+            Toast.makeText(this, "Talking needs the microphone", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** The talk button, the bars and the transcript line, from the service's state. */
+    private void refreshTalk() {
+        if (talkBtn == null) {
+            return;
+        }
+        String st = TalkService.state;
+        boolean live = "live".equals(st);
+        String label;
+        int fill;
+        int stroke;
+        int text;
+        if (live) {
+            label = "●  Live  —  tap to end";
+            fill = Color.parseColor("#0F2A1E");
+            stroke = Color.parseColor("#1E5C41");
+            text = OK;
+        } else if ("connecting".equals(st)) {
+            label = "…  Connecting to GPT-Live";
+            fill = CARD;
+            stroke = LINE;
+            text = MUTED;
+        } else if (st.startsWith("error")) {
+            String why = st.substring(7);
+            label = "!  " + (why.length() > 42 ? why.substring(0, 42) + "…" : why) + "  —  tap to retry";
+            fill = Color.parseColor("#2A0F14");
+            stroke = Color.parseColor("#5C1E2A");
+            text = Color.parseColor("#FF7A8A");
+        } else {
+            label = "🎤  Talk to GPT-Live";
+            fill = ACCENT;
+            stroke = 0;
+            text = Color.WHITE;
+        }
+        if (!label.equals(String.valueOf(talkBtn.getText()))) {
+            talkBtn.setText(label);
+            talkBtn.setTextColor(text);
+            talkBtn.setBackground(surface(fill, stroke, 14));
+        }
+        long now = System.currentTimeMillis();
+        boolean bot = live && now - TalkService.botLevelAt < 160;
+        boolean user = live && now - TalkService.userLevelAt < 160;
+        meter.set(bot ? TalkService.botLevels : user ? TalkService.userLevels : ZERO,
+                bot ? OK : user ? ACCENT : LINE);
+        String heard = TalkService.lastHeard;
+        String said = TalkService.lastSaid;
+        if (live && (!heard.isEmpty() || !said.isEmpty())) {
+            String line = (heard.isEmpty() ? "" : "You:  " + heard)
+                    + (heard.isEmpty() || said.isEmpty() ? "" : "\n")
+                    + (said.isEmpty() ? "" : "GPT:  " + said);
+            if (!line.equals(String.valueOf(talkLine.getText()))) {
+                talkLine.setText(line);
+            }
+            talkLine.setVisibility(View.VISIBLE);
+        } else if (talkLine.getVisibility() != View.GONE) {
+            talkLine.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Eight bars that follow the live audio's spectrum, centred so they
+     * breathe outward. Attack fast, decay slow - what an ear expects.
+     */
+    private final class MeterView extends View {
+        private final float[] target = new float[TalkService.BANDS];
+        private final float[] shown = new float[TalkService.BANDS];
+        private int color = LINE;
+        private final android.graphics.Paint paint =
+                new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF box = new android.graphics.RectF();
+
+        MeterView(android.content.Context c) {
+            super(c);
+        }
+
+        void set(float[] levels, int c) {
+            System.arraycopy(levels, 0, target, 0, target.length);
+            color = c;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas cv) {
+            int n = target.length;
+            float w = getWidth();
+            float h = getHeight();
+            float gap = dp(3);
+            float bw = (w - gap * (n - 1)) / n;
+            paint.setColor(color);
+            for (int i = 0; i < n; i++) {
+                float t = Math.max(0.08f, target[i]);
+                shown[i] += (t - shown[i]) * (t > shown[i] ? 0.5f : 0.18f);
+                float bh = Math.max(dp(3), shown[i] * h);
+                float x = i * (bw + gap);
+                float y = (h - bh) / 2f;
+                box.set(x, y, x + bw, y + bh);
+                cv.drawRoundRect(box, bw / 2f, bw / 2f, paint);
+            }
+        }
     }
 
     /** Flip listening on or off from the top button. */
@@ -433,19 +629,19 @@ public class MainActivity extends Activity {
                 refresh();
             }
         };
-        talkButton.postDelayed(again, 1500);
-        talkButton.postDelayed(again, 5000);
+        listenButton.postDelayed(again, 1500);
+        listenButton.postDelayed(again, 5000);
     }
 
     private void refresh() {
         boolean running = Prefs.bool(this, Prefs.RUNNING, false);
-        if (talkButton != null) {
-            talkButton.setText(running ? "●  Listening  —  tap to stop"
-                    : "○  Tap to start listening");
-            talkButton.setTextColor(running ? OK : Color.WHITE);
+        if (listenButton != null) {
+            listenButton.setText(running ? "●  Glasses listening  —  tap to stop"
+                    : "○  Glasses  —  tap to start listening");
+            listenButton.setTextColor(running ? OK : Color.WHITE);
             // Green and quiet while it is up; the accent while it is not,
             // because "start" is then the thing to do.
-            talkButton.setBackground(surface(running ? Color.parseColor("#0F2A1E") : ACCENT,
+            listenButton.setBackground(surface(running ? Color.parseColor("#0F2A1E") : ACCENT,
                     running ? Color.parseColor("#1E5C41") : 0, 14));
         }
         statusView.setText((running ? "● listening" : "○ stopped")

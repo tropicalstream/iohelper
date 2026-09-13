@@ -44,6 +44,31 @@ your voice → glasses mic → RayNeo ASR → transcript (read-only from the pho
 6. Wear the glasses, press the **crown**, and ask — *"what's the weather in
    Oakland?"* The crown press is the trigger; there is no wake word to say.
 
+## Talking to it (GPT-Live on the phone)
+
+The big button at the top of the app opens a **live voice conversation with
+OpenAI's GPT-Live-1** through the phone's microphone and speaker (or your
+earbuds). The glasses can't take part in the audio — their mic is RayNeo's
+private link and there is no audio path to them at all — so the voice lives
+on the phone and the glasses keep doing what they do: anything the
+conversation produces that is worth a glance arrives there as a card, exactly
+as a crown-press answer would.
+
+GPT-Live is the ears and the mouth, not the brain. It delegates anything that
+needs your data or an action, and the reply comes from the **same pipeline the
+crown channel uses** — the built-in phrases and the tool-calling model — so
+*"cancel the pasta timer and is it going to rain tomorrow"* is spoken back
+*and* shown on the lens. The spectrum bars beside the button follow the audio:
+purple while you speak, green while it does. The transcript of both sides
+appears under the button.
+
+It bills **$0.05 per minute, per second, while the session is open** (plus
+the backend model's fractions of a cent), so it hangs up on its own after two
+minutes of silence (`talk.idle_seconds`) and the button always shows whether
+it is live. `talk.voice` picks the voice (default `marin`). Protocol notes for
+the curious are in `TalkService.java`; it was measured live from a desktop
+before the phone code was written.
+
 ## Tool calling
 
 The built-in phrases (`Commands.java`) still run first — a recognised phrasing

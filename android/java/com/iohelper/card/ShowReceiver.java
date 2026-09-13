@@ -80,6 +80,36 @@ public class ShowReceiver extends BroadcastReceiver {
             }
             return;
         }
+        if (action != null && action.endsWith("TALKTEST")) {
+            // The live voice session, exercised from a desk: the phrase is
+            // synthesised and fed into the session as if the microphone had
+            // heard it, so speech -> transcript -> delegation -> tools ->
+            // spoken answer -> card can be proven without anyone talking.
+            //   am broadcast -n com.iohelper.card/.ShowReceiver -a <pkg>.TALKTEST --es text "..."
+            final String text = intent.getStringExtra("text");
+            final Context app = ctx.getApplicationContext();
+            final PendingResult pending = goAsync();
+            new Thread(() -> {
+                try {
+                    TalkService.hear(app, text == null ? "" : text);
+                    android.util.Log.i("iohelperTalk", "talktest: fed " + (text == null ? 0 : text.length()) + " chars");
+                } catch (Throwable t) {
+                    android.util.Log.i("iohelperTalk", "talktest failed: " + t);
+                }
+                pending.finish();
+            }).start();
+            return;
+        }
+        if (action != null && action.endsWith("TALK")) {
+            // Toggle the live voice session. A microphone foreground service
+            // cannot be started from a receiver (background), so go via the
+            // activity, exactly as START does.
+            Intent ui = new Intent(ctx, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra("talk", true);
+            ctx.startActivity(ui);
+            return;
+        }
         if (action != null && action.endsWith("CONFIGFILE")) {
             // Provisioning SECRETS. The CONFIG action below puts the value on an
             // `am broadcast` command line, and adbd logs every shell request to

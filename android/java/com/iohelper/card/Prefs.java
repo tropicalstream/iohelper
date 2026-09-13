@@ -31,6 +31,11 @@ public final class Prefs {
     /** Let the model ACT through tools (timers, lists, calendar, music, maps)
      *  rather than only answer. Default on; off restores the plain Q&A path. */
     public static final String TOOLS = "llm.tools";
+    /** GPT-Live voice for the phone's talk button (marin, cedar, ...). */
+    public static final String TALK_VOICE = "talk.voice";
+    /** Seconds of silence before a live voice session hangs up by itself -
+     *  it bills per second while open. */
+    public static final String TALK_IDLE = "talk.idle_seconds";
     public static final String SERPAPI_KEY = "search.serpapi_key";
     public static final String SEARCH_LOCATION = "search.location";
     public static final String SEARCH_MODE = "search.mode";
