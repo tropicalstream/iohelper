@@ -241,7 +241,9 @@ public final class Cards {
             new java.util.concurrent.atomic.AtomicInteger();
     /** Long enough to read a full card before the next replaces it. */
     private static final int PAGE_GAP_MS = 9000;
-    private static final int MAX_PAGES = 3;
+    // Up to five cards: GPT-Live now answers explanatory questions in full, and
+    // a several-sentence answer needs the room to page out rather than be cut.
+    private static final int MAX_PAGES = 5;
 
     /**
      * An answer too long for one card, dealt out over several.

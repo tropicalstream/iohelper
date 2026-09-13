@@ -50,7 +50,7 @@ public final class Llm {
             + "short sentence under 90 characters: for a fact, a number, a time or a "
             + "yes/no, that is the whole answer. Spend more only when the question is "
             + "about an event, place, person or topic where the extra detail is the "
-            + "point - then up to three short sentences and 300 characters, most "
+            + "point - then up to five short sentences and 500 characters, most "
             + "useful first, because the reader may only see the beginning. "
             // The budget above immediately bought a fabrication: asked about an
             // opera the model filled the extra room with "bring a coat as it's
@@ -142,7 +142,7 @@ public final class Llm {
             + "Calendar lines or live search results already in the message answer the "
             + "question - use them rather than fetching again. "
             + "Reply in plain text: no lists, no markdown, no line breaks. Default to ONE "
-            + "short sentence under 90 characters; use up to three short sentences and 300 "
+            + "short sentence under 90 characters; use up to five short sentences and 500 "
             + "characters only when the detail is the point, most useful first. When an "
             + "action tool has run, its own result line is already on the glasses: if "
             + "nothing else was asked, reply with exactly the word OK and nothing more; "

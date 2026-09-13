@@ -79,21 +79,27 @@ public class TalkService extends Service {
      */
     static final String VOICE_PROMPT =
             "You are Jarvis, a voice assistant on the user's phone, paired with smart "
-            + "glasses that show one line of text. Speak warmly and naturally at an "
-            + "unhurried pace, and keep it brief: one or two short sentences. Anything "
-            + "that depends on the user's own data or on doing something - their calendar, "
-            + "to-do list, notes, timers and reminders, music, radio, playback, navigation, "
-            + "weather, traffic, live facts, or phone functions - must be delegated: "
-            + "delegate first, say a very short acknowledgement such as 'one sec', and wait "
-            + "for the result. You are the authority on WHAT the user means: if you know "
-            + "the specific thing behind a description - which album is a band's most "
-            + "popular, which song they are humming, which place they mean - say it by name "
-            + "as you delegate, and the backend will do exactly that. Never guess a RESULT "
-            + "(what is on the calendar, the weather, whether something worked) - wait for "
-            + "it. When the result arrives, say it as given, briefly; it is also shown on "
-            + "the glasses. Keep listening while the "
-            + "user pauses to think, and do not treat a cough, music or nearby conversation "
-            + "as a request.";
+            + "glasses that show text. Speak warmly and naturally at an unhurried pace. "
+            + "When you can answer from your OWN knowledge - facts, explanations, history, "
+            + "who or what something is, definitions, how things work, advice, language, "
+            + "arithmetic - just ANSWER, right away and yourself: do not delegate it and do "
+            + "not wait. Give as many sentences as the question genuinely deserves - a "
+            + "quick fact stays one line, but 'tell me about', 'explain', 'why' or 'the "
+            + "story behind' deserve a full few sentences; your spoken answer is also shown "
+            + "on the glasses. Delegate to the phone ONLY when the request needs something "
+            + "you cannot know or do yourself: the user's own data (their calendar, to-do "
+            + "list, notes, timers, reminders), an ACTION (playing or controlling music or "
+            + "radio, navigation, setting a timer or reminder, adding a note or to-do, a "
+            + "phone function), or a LIVE, changing fact (today's weather, traffic, sports "
+            + "scores, current prices, opening hours, or breaking news). To delegate, say a "
+            + "very short acknowledgement such as 'one sec' and wait for the result. You "
+            + "are the authority on WHAT the user means: if you know the specific thing "
+            + "behind a description - which album is a band's most popular, which song they "
+            + "are humming, which place they mean - say it by name as you delegate, and the "
+            + "backend will do exactly that. Never guess a delegated RESULT (what is on the "
+            + "calendar, the weather, whether an action worked) - wait for it, then say it "
+            + "as given. Keep listening while the user pauses to think, and do not treat a "
+            + "cough, music or nearby conversation as a request.";
 
     // ---- what the screen reads ------------------------------------------------
     /** off | connecting | live | error: ... */
@@ -168,6 +174,21 @@ public class TalkService extends Service {
     private volatile long lastActivity;
     /** When the model was last heard speaking - the proof an answer landed. */
     private volatile long spokeAt;
+    /**
+     * Showing GPT-Live's OWN answers on the glasses.
+     *
+     * A delegated answer is carded in {@link #delegate}; an answer the model
+     * gives from its own knowledge (now the common case for facts and
+     * explanations - see VOICE_PROMPT) never went through that path, so it was
+     * spoken but never shown. These track a turn so the show-loop can card the
+     * direct answer once, and only once, and never on a turn that delegated
+     * (which cards itself) or on the startup "Ready".
+     */
+    private volatile boolean delegatedThisTurn;
+    private volatile boolean turnCarded;
+    private volatile boolean assistantActive;
+    private volatile long lastTurnActivity;
+    private volatile String cardedText = "";
     private final Meter userMeter = new Meter();
     private final Meter botMeter = new Meter();
     private int seq;
@@ -377,8 +398,20 @@ public class TalkService extends Service {
         Log.i(TAG, "session live");
         Thread cap = new Thread(this::capture, "talk-mic");
         Thread play = new Thread(this::playback, "talk-speaker");
+        Thread show = new Thread(this::showLoop, "talk-show");
         cap.start();
         play.start();
+        show.start();
+        // Warm the Sonos cache off the answer path, so a later "play it in the
+        // kitchen" already knows the room names (Sonos.cachedRooms never scans;
+        // discovery here blocks for seconds and must not sit on a reply).
+        new Thread(() -> {
+            try {
+                Sonos.discover(this, false);
+            } catch (Throwable t) {
+                Log.w(TAG, "sonos warm: " + t);
+            }
+        }, "talk-sonos-warm").start();
         // Hearing the voice is the proof the whole path is up.
         commentary(null, "Say only: Ready.");
         // The clock on the wearer's money: silence for this long hangs up.
@@ -686,11 +719,22 @@ public class TalkService extends Service {
                 }
                 lastActivity = System.currentTimeMillis();
                 spokeAt = lastActivity;
+                lastTurnActivity = lastActivity;
+                assistantActive = true;
                 break;
             }
             case "session.input_transcript.delta": {
                 String d = ev.optString("delta", "");
                 synchronized (pendingUser) {
+                    // The user speaking after the assistant was active is the
+                    // start of a fresh turn: clear the per-turn flags so the
+                    // next answer, delegated or direct, is handled from scratch.
+                    if (assistantActive) {
+                        assistantActive = false;
+                        delegatedThisTurn = false;
+                        turnCarded = false;
+                        cardedText = "";
+                    }
                     pendingUser.append(d);
                     lastHeard = pendingUser.toString().trim();
                 }
@@ -719,18 +763,25 @@ public class TalkService extends Service {
                         saying.append(' ');
                     }
                     saying.append(d);
-                    if (saying.length() > 300) {
-                        saying.delete(0, saying.length() - 300);
+                    // Kept long enough to hold a full spoken answer, since the
+                    // show-loop cards this whole buffer for a direct (non-
+                    // delegated) reply; the card paginator trims to what fits.
+                    if (saying.length() > 1500) {
+                        saying.delete(0, saying.length() - 1500);
                     }
                     lastSaid = saying.toString().trim();
                 }
                 lastActivity = System.currentTimeMillis();
+                lastTurnActivity = lastActivity;
+                assistantActive = true;
                 break;
             }
             case "session.delegation.created": {
                 JSONObject d = ev.optJSONObject("delegation");
                 final String id = d == null ? null : d.optString("id", null);
                 lastActivity = System.currentTimeMillis();
+                // This turn cards itself from delegate(); keep the show-loop off it.
+                delegatedThisTurn = true;
                 new Thread(() -> delegate(id), "talk-delegate").start();
                 break;
             }
@@ -980,6 +1031,49 @@ public class TalkService extends Service {
         }
         Log.w(TAG, "still silent - nudging once more");
         commentary(null, "Say this to the user now: " + content);
+    }
+
+    /**
+     * Show GPT-Live's OWN answers on the glasses.
+     *
+     * A delegated answer is already carded by {@link #delegate}; but with the
+     * voice prompt now answering facts and explanations itself, the common case
+     * is an answer the model just speaks - which was heard and never seen. This
+     * watches each turn and, once the model has finished a direct answer (its
+     * transcript has settled and its audio has stopped), posts that answer to
+     * the glasses exactly as a delegated one would be, paginated across as many
+     * cards as it needs. Guards keep it to one card-set per turn, off any turn
+     * that delegated (it cards itself), off the startup "Ready", and off tiny
+     * acknowledgements not worth a glance.
+     */
+    private void showLoop() {
+        while (running) {
+            try {
+                Thread.sleep(400);
+            } catch (InterruptedException e) {
+                break;
+            }
+            if (delegatedThisTurn || turnCarded || lastUserAt == 0) {
+                continue;                                // nothing to show, or not ours to show
+            }
+            String answer;
+            long quiet;
+            synchronized (pendingUser) {
+                answer = saying.toString().trim();
+                quiet = System.currentTimeMillis() - lastTurnActivity;
+            }
+            // Settled: no new transcript or audio for a beat, and long enough
+            // to be a real answer rather than "Sure." or "One moment.".
+            if (answer.length() > 20 && quiet > 1200 && !answer.equals(cardedText)) {
+                turnCarded = true;
+                cardedText = answer;
+                String card = Cards.decorate(Cards.sanitize(answer));
+                if (!card.isEmpty()) {
+                    Cards.postSequence(this, Cards.title(this), card, "answer");
+                    Log.i(TAG, "  showed gpt-live's own answer (" + answer.length() + " chars)");
+                }
+            }
+        }
     }
 
     /** Whether the model was heard speaking after `since`, within the wait. */

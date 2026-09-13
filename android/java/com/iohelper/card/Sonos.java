@@ -53,8 +53,43 @@ public final class Sonos {
     private static final String TAG = "iohelperSonos";
     private static final List<Zone> cache = new ArrayList<>();
     private static volatile long cachedAt;
+    /**
+     * The Wi-Fi network, if the phone has one. Every Sonos socket is opened
+     * through it, because a speaker only lives on the LAN: when mobile data is
+     * also up (it usually is), Android sends an UNBOUND socket out over cellular
+     * by default, where 192.168.x.x is unreachable - so discovery, which binds
+     * its UDP socket to the Wi-Fi address, saw the speakers while every TCP
+     * control call quietly timed out. Set on each discover(); null means no
+     * Wi-Fi, and connections fall back to the default network.
+     */
+    private static volatile android.net.Network wifiNet;
 
     private Sonos() {
+    }
+
+    /** Find the Wi-Fi network so LAN sockets can be pinned to it. */
+    private static void bindWifi(Context ctx) {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                    ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) {
+                return;
+            }
+            android.net.Network found = null;
+            for (android.net.Network n : cm.getAllNetworks()) {
+                android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(n);
+                if (caps != null
+                        && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) {
+                    found = n;
+                    break;
+                }
+            }
+            wifiNet = found;
+            android.util.Log.i(TAG, "bindWifi: " + (found == null ? "no wifi network" : "pinned to wifi"));
+        } catch (Exception e) {
+            android.util.Log.i(TAG, "bindWifi: " + e);
+            wifiNet = null;
+        }
     }
 
     /** One speaker: the room it is in, and where to reach it. */
@@ -81,6 +116,9 @@ public final class Sonos {
      * on a phone to be felt in an answer.
      */
     public static synchronized List<Zone> discover(Context ctx, boolean force) {
+        // Pin to Wi-Fi first, so even a cache hit leaves later control calls on
+        // the LAN interface rather than cellular.
+        bindWifi(ctx);
         if (!force && !cache.isEmpty() && System.currentTimeMillis() - cachedAt < CACHE_TTL_MS) {
             return new ArrayList<>(cache);
         }
@@ -162,6 +200,25 @@ public final class Sonos {
     }
 
     /**
+     * Room names we already know about, WITHOUT scanning: the live cache if it
+     * has anything, else the last-known set persisted from a previous run.
+     * This is safe to call on the answer path - discover() blocks for seconds
+     * on a cold cache, this never does - so the model can be told which rooms
+     * exist without slowing the reply. Warm the real cache in the background
+     * (see TalkService) so this has something to return.
+     */
+    public static synchronized List<String> cachedRooms(Context ctx) {
+        List<Zone> zones = !cache.isEmpty() ? new ArrayList<>(cache) : restore(ctx);
+        List<String> rooms = new ArrayList<>();
+        for (Zone z : zones) {
+            if (z.room != null && !z.room.isEmpty() && !rooms.contains(z.room)) {
+                rooms.add(z.room);
+            }
+        }
+        return rooms;
+    }
+
+    /**
      * The phone's address on the real network, skipping VPN interfaces.
      *
      * With Tailscale up there are several addresses; picking the wrong one sends
@@ -204,7 +261,9 @@ public final class Sonos {
             for (int i = 1; i <= 254; i++) {
                 final String ip = prefix + i;
                 pool.submit(() -> {
-                    try (java.net.Socket s = new java.net.Socket()) {
+                    android.net.Network net = wifiNet;
+                    try (java.net.Socket s = net != null
+                            ? net.getSocketFactory().createSocket() : new java.net.Socket()) {
                         s.connect(new java.net.InetSocketAddress(ip, PORT), 400);
                         hits.put(ip, "");
                     } catch (Exception ignored) {
@@ -705,7 +764,12 @@ public final class Sonos {
 
     private static String http(String url, String body, String soapAction, int timeoutMs)
             throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        // Open through the Wi-Fi network when there is one, so the speaker on the
+        // LAN is reachable even while mobile data carries the default route.
+        URL u = new URL(url);
+        android.net.Network net = wifiNet;
+        HttpURLConnection c = (HttpURLConnection)
+                (net != null ? net.openConnection(u) : u.openConnection());
         c.setConnectTimeout(timeoutMs);
         c.setReadTimeout(timeoutMs);
         if (body != null) {

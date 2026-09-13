@@ -503,6 +503,28 @@ public class AssistantService extends Service {
      * by the phrase patterns and never consults it, so the voice front end
      * should not wait around collecting words nobody will read.
      */
+    /**
+     * Does the utterance name a Sonos room that actually exists on the network?
+     * Reads only the warmed cache - never scans - so it is safe on the answer
+     * path. Used to send a room-named playback request to the model, which
+     * knows the rooms and can target the speaker, rather than to the phone-only
+     * phrase pattern.
+     */
+    private static boolean namesKnownRoom(Context ctx, String query) {
+        try {
+            String low = query.toLowerCase(java.util.Locale.US);
+            for (String room : Sonos.cachedRooms(ctx)) {
+                String r = room.toLowerCase(java.util.Locale.US).trim();
+                if (!r.isEmpty() && low.matches(".*\\b" + java.util.regex.Pattern.quote(r) + "\\b.*")) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "room match: " + e);
+        }
+        return false;
+    }
+
     static boolean usesSaid(Context ctx, String query) {
         Commands.Cmd cmd = Commands.parse(query);
         if (cmd == null) {
@@ -564,7 +586,21 @@ public class AssistantService extends Service {
         if (compound) {
             Log.i(TAG, "  compound request" + (cmd == null ? "" : " (skipping " + cmd.kind + ")"));
         }
-        if (cmd != null && !compound) {
+        // A playback request that NAMES a real speaker room the phrase patterns
+        // didn't route to Sonos (their room list is hardcoded and misses custom
+        // names) goes to the model instead: it is given the live room list in
+        // context and a room parameter, so it plays in the named room rather
+        // than on the phone. This is exactly the "Sonos not working with GPT"
+        // gap - the direct command branch below would play on the phone.
+        final boolean sonosReroute = cmd != null && Prefs.bool(ctx, Prefs.TOOLS, true)
+                && Llm.toolsAvailable(ctx)
+                && ("media.play".equals(cmd.kind) || "media.control".equals(cmd.kind)
+                        || "radio.play".equals(cmd.kind))
+                && namesKnownRoom(ctx, query);
+        if (sonosReroute) {
+            Log.i(TAG, "  names a Sonos room - routing " + cmd.kind + " through the model");
+        }
+        if (cmd != null && !compound && !sonosReroute) {
             r.line = Commands.run(ctx, cmd);
             r.kind = "timer".equals(cmd.kind) ? "timer" : "answer";
             r.silent = r.line == null;
@@ -667,17 +703,35 @@ public class AssistantService extends Service {
         } catch (Exception e) {
             Log.w(TAG, "store: " + e);
         }
-        if (ctxBlock.isEmpty() && cal.isEmpty() && todos.isEmpty() && notes.isEmpty()) {
+        // Which Sonos rooms exist, so the model knows to route playback there.
+        // cachedRooms never scans - the talk session warms the cache in the
+        // background - so this adds nothing to the answer's latency.
+        String speakers = "";
+        try {
+            java.util.List<String> rooms = Sonos.cachedRooms(ctx);
+            if (!rooms.isEmpty()) {
+                speakers = "Sonos speaker rooms on this network: " + String.join(", ", rooms)
+                        + ". When the user names one of these rooms, or says 'the speakers' "
+                        + "or 'the Sonos', pass that room to the play_music, play_radio or "
+                        + "media_control tool so it plays there; otherwise it plays on the phone.";
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "sonos rooms: " + e);
+        }
+        if (ctxBlock.isEmpty() && cal.isEmpty() && todos.isEmpty() && notes.isEmpty()
+                && speakers.isEmpty()) {
             return query;
         }
         Log.i(TAG, "  context: " + (ctxBlock.isEmpty() ? "" : "search ")
                 + (cal.isEmpty() ? "" : "calendar ")
                 + (todos.isEmpty() ? "" : "todos ")
-                + (notes.isEmpty() ? "" : "notes"));
+                + (notes.isEmpty() ? "" : "notes ")
+                + (speakers.isEmpty() ? "" : "speakers"));
         return (ctxBlock.isEmpty() ? "" : ctxBlock + "\n\n")
                 + (cal.isEmpty() ? "" : cal + "\n\n")
                 + (todos.isEmpty() ? "" : todos + "\n\n")
                 + (notes.isEmpty() ? "" : notes + "\n\n")
+                + (speakers.isEmpty() ? "" : speakers + "\n\n")
                 + "Using the context above only when relevant, answer: " + query;
     }
 

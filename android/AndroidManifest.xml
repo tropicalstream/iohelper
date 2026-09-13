@@ -18,6 +18,12 @@
          tapping. See BootReceiver. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Read which networks are connected, so Sonos traffic can be pinned to
+         Wi-Fi. With mobile data also up, an unbound LAN socket leaves over
+         cellular and never reaches the speakers - which is why discovery (bound
+         to the Wi-Fi address) saw them but every control call timed out. A
+         normal permission, granted at install. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Location makes weather, routes and "near me" answers correct while
          moving; a typed-in city is wrong the moment you leave it. The FGS
          type is added at runtime only when the permission is actually
