@@ -117,10 +117,29 @@ public class TalkService extends Service {
     private final StringBuilder pendingUser = new StringBuilder();
     private final StringBuilder saying = new StringBuilder();
     private volatile String lastUser = "";
+    private volatile long lastUserAt;
+    /**
+     * How long a finished turn stays usable as the question behind a
+     * delegation. Without a limit, a delegation whose own transcript was slow
+     * would be answered with whatever was said the turn BEFORE - the wearer
+     * asks about the weather and hears the answer to their last question.
+     */
+    private static final long QUESTION_TTL_MS = 12000;
     private volatile long lastActivity;
     private final Meter userMeter = new Meter();
     private final Meter botMeter = new Meter();
     private int seq;
+    /**
+     * Delegations being answered right now. The idle clock is suspended while
+     * this is above zero: a tool-calling answer can legitimately take longer
+     * than the whole idle window (six rounds at a 45 s timeout), and hanging up
+     * mid-thought would cut off the answer the wearer is waiting for.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger inFlight =
+            new java.util.concurrent.atomic.AtomicInteger();
+    private android.media.AudioFocusRequest focus;
+    /** Released when the server confirms the session is closed. */
+    private final CountDownLatch closed = new CountDownLatch(1);
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -160,9 +179,18 @@ public class TalkService extends Service {
 
     public static void stop(Context c) {
         TalkService s = instance;
-        if (s != null) {
-            s.hangUp("user");
+        if (s == null) {
+            return;
         }
+        // NEVER on the caller's thread: every caller is the UI (the button, and
+        // the TALK broadcast via onNewIntent), and hangUp writes session.close
+        // to the socket. On the main thread that throws
+        // NetworkOnMainThreadException, which was swallowed by hangUp's catch -
+        // so the polite close never left the phone, the server kept the session
+        // open, and it kept billing. The button still reads "off" at once
+        // because hangUp sets the state before any I/O.
+        state = "off";
+        new Thread(() -> s.hangUp("user"), "talk-hangup").start();
     }
 
     private void foreground(String text) {
@@ -196,10 +224,24 @@ public class TalkService extends Service {
         }
     }
 
+    /** This instance is still the live one and has not been hung up. */
+    private boolean current() {
+        return running && instance == this;
+    }
+
     private void fail(String why) {
+        // A hang-up during connect leaves the session thread still walking
+        // through its timeouts; without this guard it would come back 15 s
+        // later and paint "error: no session.started" over the "off" the user
+        // asked for.
+        synchronized (this) {
+            if (!current()) {
+                return;
+            }
+            running = false;
+            state = "error: " + why;
+        }
         Log.w(TAG, "failed: " + why);
-        state = "error: " + why;
-        running = false;
         teardown();
         stopSelf();
     }
@@ -221,7 +263,7 @@ public class TalkService extends Service {
             Map<String, String> h = new HashMap<>();
             h.put("Authorization", "Bearer " + key);
             h.put("User-Agent", "iohelper");
-            ws = Ws.connect(URI.create(LIVE_URL), h, new Ws.Listener() {
+            Ws sock = Ws.connect(URI.create(LIVE_URL), h, new Ws.Listener() {
                 @Override
                 public void onText(String text) {
                     onEvent(text, started);
@@ -240,10 +282,21 @@ public class TalkService extends Service {
                 @Override
                 public void onError(Exception e) {
                     if (running) {
-                        fail("link: " + e.getMessage());
+                        String m = e.getMessage();
+                        fail("link: " + (m == null || m.isEmpty()
+                                ? e.getClass().getSimpleName() : m));
                     }
                 }
             }, 15000);
+            // Hung up while the socket was being built: nothing else will ever
+            // close this one, because teardown() already ran with ws still null.
+            synchronized (this) {
+                if (!current()) {
+                    sock.close();
+                    return;
+                }
+                ws = sock;
+            }
             JSONObject session = new JSONObject()
                     .put("model", "gpt-live-1")
                     .put("instructions", VOICE_PROMPT)
@@ -260,7 +313,13 @@ public class TalkService extends Service {
             fail("connect: " + e.getMessage());
             return;
         }
-        state = "live";
+        synchronized (this) {
+            if (!current()) {
+                teardown();                          // hung up while connecting
+                return;
+            }
+            state = "live";
+        }
         lastActivity = System.currentTimeMillis();
         note("live - talking");
         Log.i(TAG, "session live");
@@ -278,7 +337,8 @@ public class TalkService extends Service {
             } catch (InterruptedException e) {
                 break;
             }
-            if (running && System.currentTimeMillis() - lastActivity > idleMs) {
+            if (running && inFlight.get() == 0
+                    && System.currentTimeMillis() - lastActivity > idleMs) {
                 Log.i(TAG, "idle - hanging up");
                 hangUp("idle");
             }
@@ -295,6 +355,22 @@ public class TalkService extends Service {
         // and this model listens while it speaks - without it, the phone would
         // hear itself and answer its own answers.
         am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        // Ask for focus, or music already playing keeps going at full volume -
+        // under the model's voice AND into the microphone, where it becomes
+        // transcript. TRANSIENT rather than exclusive: a station the wearer's
+        // own request just started should duck, not die.
+        try {
+            focus = new android.media.AudioFocusRequest.Builder(
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                    .setOnAudioFocusChangeListener(change -> { })
+                    .build();
+            am.requestAudioFocus(focus);
+        } catch (Exception e) {
+            Log.w(TAG, "focus: " + e);
+        }
         route(am, true);
         int inMin = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
@@ -333,19 +409,28 @@ public class TalkService extends Service {
                     return;
                 }
                 AudioDeviceInfo speaker = null;
+                AudioDeviceInfo bluetooth = null;
                 for (AudioDeviceInfo d : am.getAvailableCommunicationDevices()) {
                     int t = d.getType();
-                    if (t == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || t == AudioDeviceInfo.TYPE_BLE_HEADSET
-                            || t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_USB_HEADSET
+                    if (t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_USB_HEADSET
                             || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
-                        return;                          // leave it to the headset
+                        return;                          // wired wins on its own
+                    }
+                    // Bluetooth does NOT win on its own: on API 31+ the SCO
+                    // link is only brought up for whoever selects the device,
+                    // so "leave it to the headset" meant the earbuds sat idle
+                    // while the phone used its own speaker and mic.
+                    if (bluetooth == null && (t == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                            || t == AudioDeviceInfo.TYPE_BLE_HEADSET)) {
+                        bluetooth = d;
                     }
                     if (t == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
                         speaker = d;
                     }
                 }
-                if (speaker != null) {
-                    am.setCommunicationDevice(speaker);
+                AudioDeviceInfo pick = bluetooth != null ? bluetooth : speaker;
+                if (pick != null) {
+                    am.setCommunicationDevice(pick);
                 }
             } else {
                 am.setSpeakerphoneOn(on);
@@ -382,6 +467,10 @@ public class TalkService extends Service {
         try {
             AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
             route(am, false);
+            if (focus != null) {
+                am.abandonAudioFocusRequest(focus);
+                focus = null;
+            }
             am.setMode(savedMode);
         } catch (Exception ignored) {
         }
@@ -480,6 +569,7 @@ public class TalkService extends Service {
                     // acknowledgement rather than preceding it.
                     if (pendingUser.length() > 0) {
                         lastUser = pendingUser.toString();
+                        lastUserAt = System.currentTimeMillis();
                         pendingUser.setLength(0);
                         saying.setLength(0);
                     }
@@ -506,14 +596,21 @@ public class TalkService extends Service {
                 new Thread(() -> delegate(id), "talk-delegate").start();
                 break;
             }
-            case "session.closed":
-                Log.i(TAG, "session closed: " + ev.optString("reason", "?"));
+            case "session.closed": {
+                JSONObject s = ev.optJSONObject("session");
+                JSONObject usage = s == null ? null : s.optJSONObject("usage");
+                Log.i(TAG, "session closed: " + ev.optString("reason", "?")
+                        + (usage == null ? "" : " after " + usage.optDouble("seconds", 0) + "s"));
+                // Counted down even when the hang-up already cleared `running`:
+                // this is exactly what that hang-up is waiting for.
+                closed.countDown();
                 if (running) {
                     running = false;
                     state = "off";
                     stopSelf();
                 }
                 break;
+            }
             case "error": {
                 JSONObject err = ev.optJSONObject("error");
                 String msg = err == null ? text : err.optString("message", text);
@@ -549,19 +646,25 @@ public class TalkService extends Service {
                 break;
             }
         }
+        // The turn just closed by the model starting to speak - but only if it
+        // is recent enough to be THIS question rather than the last one.
         String q = lastUser;
+        if (q == null || System.currentTimeMillis() - lastUserAt > QUESTION_TTL_MS) {
+            return "";
+        }
         lastUser = "";
-        return q == null ? "" : q.trim();
+        return q.trim();
     }
 
     private void delegate(String id) {
-        String q = takeQuestion();
-        if (q.isEmpty()) {
-            commentary(id, "I didn't catch what you asked.");
-            return;
-        }
-        Log.i(TAG, "delegated: " + q);
+        inFlight.incrementAndGet();                  // before takeQuestion: it sleeps too
         try {
+            String q = takeQuestion();
+            if (q.isEmpty()) {
+                commentary(id, "I didn't catch what you asked.");
+                return;
+            }
+            Log.i(TAG, "delegated: " + q);
             AssistantService.Reply r = AssistantService.respond(this, q);
             if (r.error != null) {
                 commentary(id, "I couldn't reach the assistant right now.");
@@ -577,10 +680,19 @@ public class TalkService extends Service {
             if (!card.isEmpty()) {
                 Cards.postSequence(this, Cards.title(this), card, r.kind);
             }
-            commentary(id, spoken(line));
+            // An answer of nothing but glyphs leaves spoken() empty, and empty
+            // commentary tells the model nothing at all - it would sit waiting
+            // on a delegation that was in fact finished.
+            String say = spoken(line);
+            commentary(id, say.isEmpty() ? "Done." : say);
         } catch (Throwable t) {
             Log.w(TAG, "delegate: " + t);
             commentary(id, "Something went wrong with that.");
+        } finally {
+            // The silence that counts starts when the answer lands, not when
+            // the question was asked.
+            lastActivity = System.currentTimeMillis();
+            inFlight.decrementAndGet();
         }
     }
 
@@ -621,15 +733,24 @@ public class TalkService extends Service {
     }
 
     private void hangUp(String why) {
-        if (!running) {
-            return;
+        synchronized (this) {
+            if (!running) {
+                return;
+            }
+            running = false;
+            state = "off";
         }
-        running = false;
-        state = "off";
         try {
             send(new JSONObject().put("type", "session.close").put("event_id", "close"));
-            Thread.sleep(600);                           // let session.closed arrive
-        } catch (Exception ignored) {
+            // WAIT for the confirmation rather than guessing at it: measured,
+            // the server takes a couple of seconds to drain and reply, and the
+            // old fixed 600 ms tore the socket down first - so the close was
+            // sent but never acknowledged, and the final usage went unread.
+            if (!closed.await(4, TimeUnit.SECONDS)) {
+                Log.w(TAG, "no session.closed - closing anyway");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "close: " + e);
         }
         Log.i(TAG, "hung up (" + why + ")");
         teardown();

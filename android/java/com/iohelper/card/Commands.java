@@ -1494,7 +1494,7 @@ public final class Commands {
                     // A speaker was named but playback only reaches the phone:
                     // say where it actually went rather than let it look as
                     // though the speaker was used.
-                    return cmd.onSpeaker && played != null && played.startsWith("▶")
+                    return cmd.onSpeaker && Media.playing(played)
                             ? played + " (phone)"
                             : played;
                 }

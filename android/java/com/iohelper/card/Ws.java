@@ -73,6 +73,14 @@ final class Ws {
         // without which api.openai.com's front door serves the wrong cert.
         SSLSocket s = (SSLSocket) ((SSLSocketFactory) SSLSocketFactory.getDefault())
                 .createSocket(plain, host, port, true);
+        // The trust manager checks that the certificate CHAINS to a trusted CA;
+        // on its own it never checks the certificate is for THIS host, so any
+        // valid certificate for any domain would be accepted and the
+        // Authorization header handed to whoever presented it. Asking for
+        // endpoint identification makes the handshake itself verify the name.
+        javax.net.ssl.SSLParameters params = s.getSSLParameters();
+        params.setEndpointIdentificationAlgorithm("HTTPS");
+        s.setSSLParameters(params);
         s.setSoTimeout(timeoutMs);                  // handshake only; cleared below
         s.startHandshake();
 
@@ -92,24 +100,38 @@ final class Ws {
             req.append(e.getKey()).append(": ").append(e.getValue()).append("\r\n");
         }
         req.append("\r\n");
-        OutputStream out = s.getOutputStream();
-        out.write(req.toString().getBytes(StandardCharsets.UTF_8));
-        out.flush();
-        InputStream in = new BufferedInputStream(s.getInputStream(), 1 << 16);
-        String response = readHeaders(in);
-        String status = response.split("\r\n", 2)[0];
-        if (!status.contains(" 101")) {
-            throw new IOException("handshake refused: " + status);
+        // Everything from here can throw, and an abandoned TLS socket would
+        // otherwise sit open until the finalizer got to it - one leaked fd per
+        // failed attempt, and a wrong key means one per tap.
+        boolean ok = false;
+        try {
+            OutputStream out = s.getOutputStream();
+            out.write(req.toString().getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            InputStream in = new BufferedInputStream(s.getInputStream(), 1 << 16);
+            String response = readHeaders(in);
+            String status = response.split("\r\n", 2)[0];
+            if (!status.contains(" 101")) {
+                throw new IOException("handshake refused: " + status);
+            }
+            if (!response.toLowerCase().contains("sec-websocket-accept: " + accept(key).toLowerCase())) {
+                throw new IOException("bad Sec-WebSocket-Accept");
+            }
+            s.setSoTimeout(0);
+            Ws ws = new Ws(s, in, out, l);
+            Thread t = new Thread(ws::readLoop, "ws-read");
+            t.setDaemon(true);
+            t.start();
+            ok = true;
+            return ws;
+        } finally {
+            if (!ok) {
+                try {
+                    s.close();
+                } catch (IOException ignored) {
+                }
+            }
         }
-        if (!response.toLowerCase().contains("sec-websocket-accept: " + accept(key).toLowerCase())) {
-            throw new IOException("bad Sec-WebSocket-Accept");
-        }
-        s.setSoTimeout(0);
-        Ws ws = new Ws(s, in, out, l);
-        Thread t = new Thread(ws::readLoop, "ws-read");
-        t.setDaemon(true);
-        t.start();
-        return ws;
     }
 
     private static String readHeaders(InputStream in) throws IOException {
@@ -178,7 +200,14 @@ final class Ws {
         }
     }
 
-    /** Close politely: a close frame, then the socket. Idempotent. */
+    /**
+     * Close politely: a close frame, then the socket. Idempotent.
+     *
+     * The socket close is in a finally and catches Exception, not IOException:
+     * a write from the wrong thread throws NetworkOnMainThreadException, which
+     * is a RuntimeException, and letting that skip the close left the socket
+     * open and the reader thread parked on a connection nobody owned.
+     */
     void close() {
         if (!open) {
             return;
@@ -186,18 +215,21 @@ final class Ws {
         open = false;
         try {
             sendFrame(8, new byte[]{0x03, (byte) 0xE8});    // 1000, normal
-        } catch (IOException ignored) {
-        }
-        try {
-            sock.close();
-        } catch (IOException ignored) {
+        } catch (Exception ignored) {
+        } finally {
+            try {
+                sock.close();
+            } catch (IOException ignored) {
+            }
         }
     }
 
     private int readByte() throws IOException {
         int b = in.read();
         if (b < 0) {
-            throw new EOFException();
+            // With a message: this surfaces in the UI, and "link: null" is
+            // what a message-less exception reads as.
+            throw new EOFException("connection closed");
         }
         return b;
     }
@@ -207,7 +239,7 @@ final class Ws {
         while (off < dst.length) {
             int n = in.read(dst, off, dst.length - off);
             if (n < 0) {
-                throw new EOFException();
+                throw new EOFException("connection closed mid-frame");
             }
             off += n;
         }

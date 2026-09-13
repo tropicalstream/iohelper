@@ -43,6 +43,22 @@ public final class Media {
     private static final String SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
     private static final String SPOTIFY_SEARCH_URL = "https://api.spotify.com/v1/search";
     private static final String YT_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search";
+    /**
+     * The mark on a YouTube line. Filled "▶" means "playing" for everything -
+     * Spotify, Sonos, a phone track - so a video was indistinguishable from a
+     * song; the hollow triangle still reads as play while saying at a glance
+     * that this one is a video. Confirmed rendering on the lens, which is the
+     * whole test: a character its font lacks is drawn as an empty box, so a
+     * rectangular glyph could never be told apart from a missing one. BMP
+     * only, like everything that reaches the glasses (Cards.sanitize drops
+     * the rest).
+     */
+    static final String YT_GLYPH = "▷";
+
+    /** Whether a line reports something actually playing, whatever the source. */
+    static boolean playing(String line) {
+        return line != null && (line.startsWith("▶") || line.startsWith(YT_GLYPH));
+    }
 
     private static volatile String spotifyToken;
     private static volatile long spotifyTokenExpiry;
@@ -1024,7 +1040,7 @@ public final class Media {
                         JSONObject v = vids.getJSONObject(0);
                         String link = v.optString("link", "");
                         if (link.contains("watch?v=")) {
-                            return open(ctx, link, "▶ " + v.optString("title", query));
+                            return open(ctx, link, YT_GLYPH + " " + v.optString("title", query));
                         }
                     }
                 } catch (Exception ignored) {
@@ -1032,19 +1048,19 @@ public final class Media {
                 }
             }
             return open(ctx, "https://www.youtube.com/results?search_query=" + enc(query),
-                    "▶ YouTube search: " + query);
+                    YT_GLYPH + " YouTube search: " + query);
         }
         try {
             String resp = http(YT_SEARCH_URL + "?part=snippet&type=video&maxResults=1&q="
                     + enc(query) + "&key=" + enc(key), "GET", null, null, null, 15000);
             JSONArray items = new JSONObject(resp).getJSONArray("items");
             if (items.length() == 0) {
-                return "▶ Nothing on YouTube for " + query + ".";
+                return YT_GLYPH + " Nothing on YouTube for " + query + ".";
             }
             JSONObject first = items.getJSONObject(0);
             String id = first.getJSONObject("id").getString("videoId");
             String title = first.getJSONObject("snippet").optString("title", query);
-            return open(ctx, "https://www.youtube.com/watch?v=" + id, "▶ " + title);
+            return open(ctx, "https://www.youtube.com/watch?v=" + id, YT_GLYPH + " " + title);
         } catch (Exception e) {
             return "YouTube search failed (" + e + ")";
         }
