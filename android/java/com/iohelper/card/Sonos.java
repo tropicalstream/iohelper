@@ -44,6 +44,8 @@ public final class Sonos {
     private static final String SSDP_ADDR = "239.255.255.250";
     private static final String ST = "urn:schemas-upnp-org:device:ZonePlayer:1";
     private static final int SOAP_TIMEOUT_MS = 4000;
+    /** Asking a speaker we already know whether it is still there: fail fast. */
+    private static final int QUICK_TIMEOUT_MS = 1500;
     // A large Spotify playlist/album takes the speaker well over 4s to
     // resolve and enqueue; quick queries keep the short timeout.
     private static final int ENQUEUE_TIMEOUT_MS = 15000;
@@ -121,6 +123,33 @@ public final class Sonos {
         bindWifi(ctx);
         if (!force && !cache.isEmpty() && System.currentTimeMillis() - cachedAt < CACHE_TTL_MS) {
             return new ArrayList<>(cache);
+        }
+        // GO STRAIGHT TO A SPEAKER WE ALREADY KNOW.
+        //
+        // The full sweep below costs ~12s before a note plays: SSDP, a 254-address
+        // scan, then a 3s timeout for every address that answered SSDP but is not
+        // a Sonos (one such device on this network burns 3s of every request).
+        // Any blip inside that window fails the whole command, which is what made
+        // playback feel intermittent - one attempt found nothing at all, the next
+        // a minute later played fine. A speaker that is still answering on its
+        // remembered address is the answer, so ask it first and skip the sweep.
+        if (!force) {
+            List<Zone> known = cache.isEmpty() ? restore(ctx) : new ArrayList<>(cache);
+            List<Zone> alive = new ArrayList<>();
+            for (Zone z : known) {
+                String room = roomName(z.ip, QUICK_TIMEOUT_MS);
+                if (room != null) {
+                    alive.add(new Zone(room, z.ip));
+                }
+            }
+            if (!alive.isEmpty()) {
+                android.util.Log.i(TAG, "known speaker still answering: " + alive);
+                cache.clear();
+                cache.addAll(alive);
+                cachedAt = System.currentTimeMillis();
+                remember(ctx, alive);
+                return new ArrayList<>(alive);
+            }
         }
         Map<String, String> found = new LinkedHashMap<>();     // ip -> room
         java.net.InetAddress lan = lanAddress();
@@ -282,9 +311,13 @@ public final class Sonos {
 
     /** The speaker's room, straight from its own description document. */
     private static String roomName(String ip) {
+        return roomName(ip, 3000);
+    }
+
+    private static String roomName(String ip, int timeoutMs) {
         try {
             String xml = http("http://" + ip + ":" + PORT + "/xml/device_description.xml",
-                    null, null, 3000);
+                    null, null, timeoutMs);
             int i = xml.indexOf("<roomName>");
             if (i < 0) {
                 android.util.Log.i(TAG, "roomName " + ip + ": no tag, " + xml.length() + " bytes");
@@ -762,7 +795,25 @@ public final class Sonos {
                 service + "#" + action, timeoutMs);
     }
 
+    /**
+     * One retry on a timeout, because the path to the speaker comes and goes.
+     *
+     * Measured on this network: the same request failed outright, then succeeded
+     * a minute later untouched. A single blip should not lose the command, so a
+     * connect/read timeout is tried once more before giving up. Only a timeout
+     * is retried - a speaker that answered and refused is answered honestly.
+     */
     private static String http(String url, String body, String soapAction, int timeoutMs)
+            throws Exception {
+        try {
+            return httpOnce(url, body, soapAction, timeoutMs);
+        } catch (java.net.SocketTimeoutException first) {
+            android.util.Log.i(TAG, "timeout, one retry: " + url);
+            return httpOnce(url, body, soapAction, timeoutMs);
+        }
+    }
+
+    private static String httpOnce(String url, String body, String soapAction, int timeoutMs)
             throws Exception {
         // Open through the Wi-Fi network when there is one, so the speaker on the
         // LAN is reachable even while mobile data carries the default route.

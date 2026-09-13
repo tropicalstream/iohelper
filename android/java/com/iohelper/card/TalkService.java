@@ -187,7 +187,23 @@ public class TalkService extends Service {
     private volatile boolean delegatedThisTurn;
     private volatile boolean turnCarded;
     private volatile boolean assistantActive;
-    private volatile long lastTurnActivity;
+    private volatile boolean sawUser;
+    /**
+     * Showing a direct answer is driven from the EVENT STREAM, not a polling
+     * thread. A polling loop was tried first and never ran a single iteration on
+     * the device, for reasons that never showed up in a log; the event handler
+     * demonstrably runs, so the card is scheduled from there instead. Each new
+     * transcript or audio chunk pushes the flush further out, so it fires once,
+     * when the model has actually stopped talking.
+     */
+    private final android.os.Handler cardHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable cardFlush = new Runnable() {
+        @Override
+        public void run() {
+            flushCard();
+        }
+    };
     private volatile String cardedText = "";
     private final Meter userMeter = new Meter();
     private final Meter botMeter = new Meter();
@@ -398,10 +414,8 @@ public class TalkService extends Service {
         Log.i(TAG, "session live");
         Thread cap = new Thread(this::capture, "talk-mic");
         Thread play = new Thread(this::playback, "talk-speaker");
-        Thread show = new Thread(this::showLoop, "talk-show");
         cap.start();
         play.start();
-        show.start();
         // Warm the Sonos cache off the answer path, so a later "play it in the
         // kitchen" already knows the room names (Sonos.cachedRooms never scans;
         // discovery here blocks for seconds and must not sit on a reply).
@@ -699,6 +713,14 @@ public class TalkService extends Service {
         }
     }
 
+    /**
+     * Event types seen this session, logged once each. The protocol was read off
+     * a desk once and is not documented; when a card fails to appear it matters
+     * whether the transcript events arrived at all or only the audio did.
+     */
+    private final java.util.Set<String> seenTypes =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+
     // ---- events ---------------------------------------------------------------
     private void onEvent(String text, CountDownLatch started) {
         JSONObject ev;
@@ -706,6 +728,10 @@ public class TalkService extends Service {
             ev = new JSONObject(text);
         } catch (Exception e) {
             return;
+        }
+        String seen = ev.optString("type", "");
+        if (!seen.isEmpty() && seenTypes.add(seen)) {
+            Log.i(TAG, "  event seen: " + seen);
         }
         String t = ev.optString("type", "");
         switch (t) {
@@ -719,8 +745,13 @@ public class TalkService extends Service {
                 }
                 lastActivity = System.currentTimeMillis();
                 spokeAt = lastActivity;
-                lastTurnActivity = lastActivity;
                 assistantActive = true;
+                // DELIBERATELY does not reschedule the card flush. This stream
+                // does not stop between utterances - it keeps sending audio for
+                // as long as the session is open - so treating it as "the model
+                // is still talking" postponed the card until the wearer hung up,
+                // and the flush then found the session gone. Only WORDS mean the
+                // model is still answering, so only the transcript reschedules.
                 break;
             }
             case "session.input_transcript.delta": {
@@ -735,6 +766,10 @@ public class TalkService extends Service {
                         turnCarded = false;
                         cardedText = "";
                     }
+                    // Set directly here, not via the transcript-flush below, so
+                    // the show-loop's "a user has spoken" gate does not depend on
+                    // an output transcript ever arriving.
+                    sawUser = true;
                     pendingUser.append(d);
                     lastHeard = pendingUser.toString().trim();
                 }
@@ -772,8 +807,8 @@ public class TalkService extends Service {
                     lastSaid = saying.toString().trim();
                 }
                 lastActivity = System.currentTimeMillis();
-                lastTurnActivity = lastActivity;
                 assistantActive = true;
+                scheduleCard();
                 break;
             }
             case "session.delegation.created": {
@@ -1046,33 +1081,32 @@ public class TalkService extends Service {
      * that delegated (it cards itself), off the startup "Ready", and off tiny
      * acknowledgements not worth a glance.
      */
-    private void showLoop() {
-        while (running) {
-            try {
-                Thread.sleep(400);
-            } catch (InterruptedException e) {
-                break;
-            }
-            if (delegatedThisTurn || turnCarded || lastUserAt == 0) {
-                continue;                                // nothing to show, or not ours to show
-            }
-            String answer;
-            long quiet;
-            synchronized (pendingUser) {
-                answer = saying.toString().trim();
-                quiet = System.currentTimeMillis() - lastTurnActivity;
-            }
-            // Settled: no new transcript or audio for a beat, and long enough
-            // to be a real answer rather than "Sure." or "One moment.".
-            if (answer.length() > 20 && quiet > 1200 && !answer.equals(cardedText)) {
-                turnCarded = true;
-                cardedText = answer;
-                String card = Cards.decorate(Cards.sanitize(answer));
-                if (!card.isEmpty()) {
-                    Cards.postSequence(this, Cards.title(this), card, "answer");
-                    Log.i(TAG, "  showed gpt-live's own answer (" + answer.length() + " chars)");
-                }
-            }
+    /** Push the card flush out to 1.2s from now; the last one scheduled wins. */
+    private void scheduleCard() {
+        cardHandler.removeCallbacks(cardFlush);
+        cardHandler.postDelayed(cardFlush, 1200);
+    }
+
+    /** The model has stopped talking: show what it said, if it is ours to show. */
+    private void flushCard() {
+        String answer;
+        synchronized (pendingUser) {
+            answer = saying.toString().trim();
+        }
+        // Note: NOT gated on `running`. The answer is worth showing even if the
+        // wearer hung up a moment after hearing it.
+        if (delegatedThisTurn || turnCarded || !sawUser
+                || answer.length() <= 20 || answer.equals(cardedText)) {
+            Log.i(TAG, "  card skipped: len=" + answer.length() + " sawUser=" + sawUser
+                    + " delegated=" + delegatedThisTurn + " carded=" + turnCarded);
+            return;
+        }
+        turnCarded = true;
+        cardedText = answer;
+        String card = Cards.decorate(Cards.sanitize(answer));
+        if (!card.isEmpty()) {
+            Cards.postSequence(this, Cards.title(this), card, "answer");
+            Log.i(TAG, "  showed gpt-live's own answer (" + answer.length() + " chars)");
         }
     }
 

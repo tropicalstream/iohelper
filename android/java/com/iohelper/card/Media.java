@@ -785,7 +785,18 @@ public final class Media {
                 hits++;
             }
         }
-        return meaningful == 0 || hits * 2 >= meaningful;
+        // A SHORT query has no room for a miss. "Wolfgang Amadeus Mozart"
+        // shares two of its three words with the album "Wolfgang Amadeus
+        // Phoenix", and no artist is claimed for a bare name, so the majority
+        // rule below cheerfully played Phoenix on the speaker. The one word
+        // that was missing was the only one that identified anybody. With three
+        // words or fewer every one of them has to be present; the tolerance
+        // exists for longer titles, where a dropped article or a missing
+        // subtitle word is normal.
+        if (meaningful <= 3) {
+            return hits == meaningful;
+        }
+        return hits * 2 >= meaningful;
     }
 
     public static String[] searchContainer(Context ctx, String query, String kind) {
