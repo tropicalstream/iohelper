@@ -614,11 +614,27 @@ public final class Media {
         if (!spotifyConfigured(ctx) || title == null || title.trim().isEmpty()) {
             return null;
         }
+        String field = kind + ":\"" + title + "\""
+                + (artist == null || artist.isEmpty() ? "" : " artist:\"" + artist + "\"");
+        // %20 not "+": a quoted field filter takes a literal plus otherwise.
+        String[] hit = searchRelease(ctx, enc(field).replace("+", "%20"), artist, title, kind);
+        if (hit != null) {
+            return hit;
+        }
+        // The quoted filter is exact to a fault: punctuation inside it can
+        // return NOTHING at all. "Who's Afraid of the Art of Noise?" found
+        // nothing because the catalogue spells it with an exclamation mark, so
+        // a correctly named album was reported as missing. A plain-text search
+        // tolerates that, and every candidate still goes through the same
+        // title-and-artist check below - nothing unverified can play.
+        String plain = (title + (artist == null || artist.isEmpty() ? "" : " " + artist)).trim();
+        return searchRelease(ctx, enc(plain).replace("+", "%20"), artist, title, kind);
+    }
+
+    /** One search, with every candidate verified against the wanted title and artist. */
+    private static String[] searchRelease(Context ctx, String q, String artist, String title,
+                                          String kind) {
         try {
-            String field = kind + ":\"" + title + "\""
-                    + (artist == null || artist.isEmpty() ? "" : " artist:\"" + artist + "\"");
-            // %20 not "+": a quoted field filter takes a literal plus otherwise.
-            String q = enc(field).replace("+", "%20");
             String resp = http(SPOTIFY_SEARCH_URL + "?q=" + q + "&type=" + kind + "&limit=10",
                     "GET", null, null, "Bearer " + spotifyToken(ctx), 15000);
             JSONArray items = new JSONObject(resp).getJSONObject(kind + "s").getJSONArray("items");
@@ -788,6 +804,17 @@ public final class Media {
         if ("playlist".equals(kind) && artistMatch(ctx, q) != null) {
             return null;
         }
+        // Whose record the words asked for, when they said. The relevance test
+        // below only compares the words against the TITLE, which is how
+        // "acdc's 2nd most popular album" came back with an album called "Most
+        // Popular Nursery Rhymes" - two of the words were in that title and
+        // nothing ever asked who made it. Null for a plain title, so a literal
+        // search is unaffected (see Commands.artistHint).
+        // Only an ALBUM carries an artist credit: for a playlist the `by`
+        // below is the OWNER's display name ("Spotify", a stranger's handle),
+        // which no artist name will ever match, so claiming one here would
+        // reject every playlist there is.
+        String want = "album".equals(kind) ? Commands.artistHint(query) : null;
         try {
             String token = spotifyToken(ctx);
             String resp = http(SPOTIFY_SEARCH_URL + "?q=" + enc(q)
@@ -813,7 +840,8 @@ public final class Media {
                     by = owner == null ? "" : owner.optString("display_name", "");
                     curated = "spotify".equalsIgnoreCase(by);
                 }
-                if ((name + " " + by).matches(IMPOSTOR) || !relevant(q, name)) {
+                if ((name + " " + by).matches(IMPOSTOR) || !relevant(q, name)
+                        || !Commands.artistIs(want, by)) {
                     continue;
                 }
                 String[] hit = new String[]{o.getString("id"), o.getString("uri"),

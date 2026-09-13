@@ -85,8 +85,13 @@ public class TalkService extends Service {
             + "to-do list, notes, timers and reminders, music, radio, playback, navigation, "
             + "weather, traffic, live facts, or phone functions - must be delegated: "
             + "delegate first, say a very short acknowledgement such as 'one sec', and wait "
-            + "for the result. Never guess a result. When the result arrives, say it as "
-            + "given, briefly; it is also shown on the glasses. Keep listening while the "
+            + "for the result. You are the authority on WHAT the user means: if you know "
+            + "the specific thing behind a description - which album is a band's most "
+            + "popular, which song they are humming, which place they mean - say it by name "
+            + "as you delegate, and the backend will do exactly that. Never guess a RESULT "
+            + "(what is on the calendar, the weather, whether something worked) - wait for "
+            + "it. When the result arrives, say it as given, briefly; it is also shown on "
+            + "the glasses. Keep listening while the "
             + "user pauses to think, and do not treat a cough, music or nearby conversation "
             + "as a request.";
 
@@ -637,6 +642,16 @@ public class TalkService extends Service {
                 if (pendingUser.length() > 0) {
                     String q = pendingUser.toString().trim();
                     pendingUser.setLength(0);
+                    // This turn's authority starts NOW. `saying` is otherwise
+                    // only cleared when the model starts speaking while a
+                    // question is still pending - and taking the question here
+                    // is exactly what stops that from happening, since the
+                    // model is told to delegate before it acknowledges. Without
+                    // this the buffer accumulated from the session's first word
+                    // and saidSoFar() handed the PREVIOUS turn's sentence to
+                    // the resolver: ask for an artist's most popular album,
+                    // then for their third, and the first answer plays twice.
+                    saying.setLength(0);
                     return q;
                 }
             }
@@ -665,7 +680,14 @@ public class TalkService extends Service {
                 return;
             }
             Log.i(TAG, "delegated: " + q);
-            AssistantService.Reply r = AssistantService.respond(this, q);
+            // Only wait for the model's words where they can change the
+            // outcome: a timer or a to-do is done by the phrase patterns and
+            // would just be held up for a second by the collection.
+            String said = AssistantService.usesSaid(this, q) ? saidSoFar() : "";
+            if (!said.isEmpty()) {
+                Log.i(TAG, "  gpt-live said: " + said);
+            }
+            AssistantService.Reply r = AssistantService.respond(this, q, said);
             if (r.error != null) {
                 commentary(id, "I couldn't reach the assistant right now.");
                 return;
@@ -694,6 +716,52 @@ public class TalkService extends Service {
             lastActivity = System.currentTimeMillis();
             inFlight.decrementAndGet();
         }
+    }
+
+    /**
+     * What the voice model has said about THIS request - the authority the
+     * backend acts on.
+     *
+     * In a live session GPT-Live is the one talking to the user, and it
+     * answers from its own knowledge as it delegates: "their most popular
+     * album is X - one sec". If the backend then worked the request out for
+     * itself it could land somewhere else, and the user would hear one thing
+     * named and another one happen. So whatever the model has said this turn
+     * is collected and handed over, and the backend is told to act on exactly
+     * that. The words usually arrive a beat AFTER the delegation, so this
+     * waits for the sentence to settle - but not for a model that is saying
+     * nothing: if nothing has been said within a moment, the request goes
+     * through on its own.
+     */
+    private String saidSoFar() {
+        String last = "";
+        int quiet = 0;
+        for (int i = 0; i < 12 && running; i++) {          // up to ~2.4 s
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                break;
+            }
+            String now;
+            synchronized (pendingUser) {
+                now = saying.toString().trim();
+            }
+            if (now.isEmpty()) {
+                if (i >= 3) {
+                    return "";                           // silent: don't hold the answer
+                }
+                continue;
+            }
+            if (now.equals(last)) {
+                if (++quiet >= 3) {
+                    break;                               // the sentence has finished
+                }
+            } else {
+                last = now;
+                quiet = 0;
+            }
+        }
+        return last;
     }
 
     /** A glasses line as words: the glyphs go, the separators become pauses. */

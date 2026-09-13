@@ -54,6 +54,22 @@ public final class CommandsProbe {
             if ("compound".equals(expected) || "single".equals(expected)) {
                 got = Commands.compound(utterance) ? "compound" : "single";
                 detail = "-";
+            } else if (expected.startsWith("hint:")) {
+                // Whose record the words claim. "-" means they name a title
+                // instead, and no artist check must be applied to it.
+                String h = Commands.artistHint(utterance);
+                got = "hint:" + (h == null ? "-" : h.toLowerCase());
+                detail = "-";
+            } else if ("descriptive".equals(expected) || "literal".equals(expected)) {
+                // Does a play phrase DESCRIBE a release (so the resolver must
+                // name it) or name one outright (literal search)? "their most
+                // popular album" being taken literally is how a different
+                // album got played.
+                Commands.Cmd c = Commands.parse(utterance);
+                boolean play = c != null && c.descr != null
+                        && ("media.play".equals(c.kind) || "sonos.play".equals(c.kind));
+                got = play && Commands.isDescriptive(c.descr, c.contentType) ? "descriptive" : "literal";
+                detail = c == null ? "-" : "kind=" + c.kind + " descr=\"" + c.descr + "\"";
             } else try {
                 Commands.Cmd c = Commands.parse(utterance);
                 if (c == null) {

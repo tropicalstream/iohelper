@@ -494,9 +494,49 @@ public class AssistantService extends Service {
      * speaks the result. One brain, two mouths.
      */
     static Reply respond(Context ctx, String query) {
+        return respond(ctx, query, null);
+    }
+
+    /**
+     * Whether what the voice model said could change this request's outcome.
+     * A purely local command - a timer, a to-do, navigation - is carried out
+     * by the phrase patterns and never consults it, so the voice front end
+     * should not wait around collecting words nobody will read.
+     */
+    static boolean usesSaid(Context ctx, String query) {
+        Commands.Cmd cmd = Commands.parse(query);
+        if (cmd == null) {
+            return true;                            // the model answers it
+        }
+        if (Prefs.bool(ctx, Prefs.TOOLS, true) && Llm.toolsAvailable(ctx)
+                && Commands.compound(query)) {
+            return true;                            // the model answers it
+        }
+        return cmd.descr != null
+                && ("media.play".equals(cmd.kind) || "sonos.play".equals(cmd.kind))
+                && Commands.isDescriptive(cmd.descr, cmd.contentType);
+    }
+
+    /**
+     * @param said what the voice front end has ALREADY told the user about this
+     *             request, if anything - "their most popular album is X". In a
+     *             live session that voice is the authority on what the user
+     *             means: the user has heard it, and what happens next must be
+     *             the same thing. It reaches the music resolver directly for a
+     *             descriptive play, and the model as an instruction otherwise.
+     */
+    static Reply respond(Context ctx, String query, String said) {
         Reply r = new Reply();
         // Timers and to-dos are handled locally - no LLM, no network...
         final Commands.Cmd cmd = Commands.parse(query);
+        if (cmd != null && said != null && !said.trim().isEmpty() && cmd.descr != null
+                && ("media.play".equals(cmd.kind) || "sonos.play".equals(cmd.kind))
+                && Commands.isDescriptive(cmd.descr, cmd.contentType)) {
+            // Its own field, NOT descr: descr is what the curated/descriptive
+            // classifiers read, and free prose in it re-reads the request.
+            cmd.said = said.trim();
+            Log.i(TAG, "  play resolved with the voice model's own words");
+        }
         // ...unless the utterance carries a SECOND request and a model with
         // tools is there to take it. The phrase patterns understand one request
         // each and swallow the rest into a label ("Timer set: kick off egg and
@@ -522,6 +562,21 @@ public class AssistantService extends Service {
             return r;
         }
         String prompt = contextual(ctx, query);
+        if (said != null && !said.trim().isEmpty()) {
+            // Authoritative about the SUBJECT, never about the FACTS. The voice
+            // model names what the user meant - which album, which place, which
+            // person - and that beats working it out again, because the user
+            // has already heard it. But it is talking while the answer is being
+            // fetched, so anything it says about live data is a guess: repeating
+            // that instead of calling the tool would turn a guess into a fact.
+            prompt += "\n\nThe voice assistant speaking to the user has already told them: \""
+                    + said.trim() + "\". Treat that as authoritative about WHAT THE USER "
+                    + "MEANS - which album, place, person or item - and act on exactly what "
+                    + "it named rather than choosing differently. It is NOT a source of "
+                    + "facts: still call the tools for anything live (times, traffic, "
+                    + "calendar, weather, what is playing) and never repeat its numbers or "
+                    + "claims without checking them.";
+        }
         try {
             if (Prefs.bool(ctx, Prefs.TOOLS, true)) {
                 // The model may ACT here - set the timer, add the item, start

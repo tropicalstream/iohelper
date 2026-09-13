@@ -450,11 +450,17 @@ public final class Llm {
             + "\"kind\":\"album\" or \"track\",\"confident\":true or false}. "
             + "Rules: title is the real released title only - no year, no the word 'album', no "
             + "descriptive words. debut/first = the artist's first studio album; "
+            + "most popular/best known/biggest/best-selling = the artist's best-selling or "
+            + "best-known studio album (or single, if a song was asked for); an ordinal "
+            + "ATTACHED to one of those - '2nd most popular', 'third biggest' - means rank "
+            + "N BY POPULARITY, counting down from the most popular, NOT the Nth release; "
             + "latest/newest/most recent = the most recent studio album you are sure exists; an "
             + "ordinal (second, third, ...) counts studio albums in release order; 'greatest "
             + "hits'/'best of' = the real compilation title if you know it, else title "
             + "\"Greatest Hits\" with kind album. 'the album with X' or 'the one where ...' = "
-            + "the album or song that actually contains X. 'song from <movie/show/game>' = the "
+            + "the album or song that actually contains X. If the request says what the "
+            + "assistant has ALREADY TOLD the user, name exactly that release - the user has "
+            + "heard it and expects it. 'song from <movie/show/game>' = the "
             + "performing artist's recording with kind track, not the composer, unless it is an "
             + "instrumental score. If the description already names a plain title, echo it back. "
             + "Set confident=false whenever you are guessing, the artist or release is "
@@ -474,11 +480,7 @@ public final class Llm {
                 + (kindHint == null ? "" : " The user wants an " + kindHint + ".")
                 + " Identify it and return only the JSON object.";
         try {
-            String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
-            String raw = "gemini".equals(backend)
-                    ? geminiJson(ctx, RESOLVER, user, 512)
-                    : groqJson(ctx, RESOLVER, user, 512);
-            return firstJsonObject(raw);
+            return firstJsonObject(json(ctx, RESOLVER, user, 512));
         } catch (Exception e) {
             android.util.Log.i("iohelperLlm", "resolveMusic failed: " + e);
             return null;
@@ -516,15 +518,85 @@ public final class Llm {
         String user = "Request: \"" + description + "\". Give " + count
                 + " tracks. Return only the JSON object.";
         try {
-            String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
-            String raw = "gemini".equals(backend)
-                    ? geminiJson(ctx, CURATOR, user, 2048)
-                    : groqJson(ctx, CURATOR, user, 2048);
-            return firstJsonObject(raw);
+            return firstJsonObject(json(ctx, CURATOR, user, 2048));
         } catch (Exception e) {
             android.util.Log.i("iohelperLlm", "resolveList failed: " + e);
             return null;
         }
+    }
+
+    /**
+     * A machine-only JSON answer from WHICHEVER backend is configured.
+     *
+     * This used to be "Gemini, else Groq" - the OpenAI backend did not exist
+     * when it was written, and nobody revisited it when one was added. So
+     * with the backend set to openai, every music resolution still went to
+     * Groq, which this phone's network blocks; the resolver failed silently
+     * and "the Art of Noise's most popular album" degraded to a literal
+     * Spotify search for those words, which played a different album. The
+     * resolver now follows the backend the rest of the assistant uses.
+     */
+    private static String json(Context ctx, String system, String user, int maxTokens) throws Exception {
+        String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
+        if ("gemini".equals(backend)) {
+            return geminiJson(ctx, system, user, maxTokens);
+        }
+        if ("openai".equals(backend)) {
+            return openaiJson(ctx, system, user, maxTokens);
+        }
+        return groqJson(ctx, system, user, maxTokens);
+    }
+
+    /** OpenAI /responses with a custom instruction and JSON output. */
+    private static String openaiJson(Context ctx, String system, String user, int maxTokens) throws Exception {
+        String key = Prefs.str(ctx, Prefs.OPENAI_KEY, "");
+        if (key.isEmpty()) {
+            throw new LlmException("OpenAI API key not set");
+        }
+        String base = Prefs.str(ctx, Prefs.OPENAI_BASE, OPENAI_URL).replaceAll("/+$", "");
+        String model = Prefs.str(ctx, Prefs.OPENAI_MODEL, "gpt-5.6-luna");
+        JSONObject body = new JSONObject();
+        body.put("model", model);
+        body.put("instructions", system);
+        body.put("input", user);
+        // Reasoning tokens come out of this budget, so the caller's figure is a
+        // floor for the ANSWER, not the total: at 512 the model could spend the
+        // lot thinking and return an empty message, which looked exactly like
+        // "no knowledge" and refused the request.
+        body.put("max_output_tokens", Math.max(maxTokens, 1024));
+        body.put("store", false);
+        body.put("reasoning", new JSONObject().put("effort", "low"));
+        body.put("text", new JSONObject().put("format", new JSONObject().put("type", "json_object")));
+        // 20s, not the 45s of the Q&A path: a play command must not hang.
+        String resp = http(base + "/responses", "POST", body.toString(), key, 20000);
+        JSONObject top = new JSONObject(resp);
+        JSONArray output = top.getJSONArray("output");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < output.length(); i++) {
+            JSONObject item = output.getJSONObject(i);
+            if (!"message".equals(item.optString("type", ""))) {
+                continue;
+            }
+            JSONArray parts = item.optJSONArray("content");
+            for (int p = 0; parts != null && p < parts.length(); p++) {
+                JSONObject part = parts.optJSONObject(p);
+                if (part != null && "output_text".equals(part.optString("type", ""))) {
+                    sb.append(part.optString("text", ""));
+                }
+            }
+        }
+        if (sb.length() == 0) {
+            // Say WHY rather than returning nothing: an empty string is
+            // indistinguishable from "I don't know", and the caller now
+            // refuses the request on that - a truncation would look like
+            // missing knowledge for ever.
+            throw new LlmException("no text from " + model + " ("
+                    + top.optString("status", "?")
+                    + (top.optJSONObject("incomplete_details") == null ? ""
+                            : ": " + top.optJSONObject("incomplete_details").optString("reason", ""))
+                    + ")");
+        }
+        return sb.toString();
     }
 
     /** Groq chat with a custom system prompt and JSON response mode. */

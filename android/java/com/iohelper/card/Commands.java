@@ -356,6 +356,20 @@ public final class Commands {
          */
         public String descr;
 
+        /**
+         * What the live voice model has already told the user about this
+         * request, if anything - it named the release out loud and the user
+         * heard it, so that is what must play.
+         *
+         * Deliberately NOT folded into {@link #descr}: descr is what
+         * isCurated / isDescriptive / curatedQuery classify on, and free prose
+         * in it re-classifies the request - "one of the greatest albums of all
+         * time" reads as a request for a greatest-hits MIX, and a single-album
+         * request would come back as ten tracks. This reaches the resolver's
+         * prompt and nothing else.
+         */
+        public String said;
+
         Cmd(String kind, int seconds, String text) {
             this(kind, seconds, text, null, false);
         }
@@ -1104,6 +1118,11 @@ public final class Commands {
      */
     private static final Pattern DESC_STRONG = Pattern.compile(
             "\\b(?:debut|latest|newest|most\\s+recent|brand[-\\s]?new"
+            // "their most popular album" was NOT here, so it was taken as a
+            // literal title and searched for word-for-word - and Spotify
+            // returned some other release by the artist.
+            + "|most\\s+(?:popular|famous|successful|played|streamed)|best[-\\s]?known"
+            + "|best[-\\s]?selling|top\\s+(?:album|song|track)"
             + "|greatest\\s+hits|best\\s+of|anthology|discography"
             + "|(?:song|track|theme|tune|music|score)\\s+from"
             + "|from\\s+(?:the\\s+)?(?:movie|film|show|series|tv|soundtrack|musical|game"
@@ -1121,7 +1140,11 @@ public final class Commands {
      */
     private static final Pattern DESC_ORDINAL = Pattern.compile(
             "\\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth"
-            + "|1st|2nd|3rd|\\d{1,2}th|last|final|earliest|penultimate)\\b",
+            + "|1st|2nd|3rd|\\d{1,2}th|last|final|earliest|penultimate"
+            // These sit inside real titles too ("Biggest Part of Me",
+            // "Breakthrough"), so they only DESCRIBE when a music noun says a
+            // release is being picked out.
+            + "|biggest|signature|breakthrough)\\b",
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern MUSIC_NOUN = Pattern.compile(
@@ -1194,6 +1217,84 @@ public final class Commands {
                 && (contentType != null || MUSIC_NOUN.matcher(descr).find());
     }
 
+    /**
+     * Words that mark what FOLLOWS a possessive as a description of a release
+     * rather than part of its title. "acdc's 2nd most popular album" describes
+     * one; "Sgt. Pepper's Lonely Hearts Club Band" is one. Getting that
+     * backwards would refuse to play half the Beatles.
+     */
+    private static final Pattern POSSESSIVE_DESC = Pattern.compile(
+            "(?i)['’]s?\\s+(?:\\d{1,2}(?:st|nd|rd|th)\\s+)?"
+            + "(?:most|best|greatest|biggest|top|first|second|third|fourth|fifth|last|final"
+            + "|latest|newest|debut|earliest|signature|breakthrough|only|entire|whole"
+            + "|album|record|lp|ep|single|song|track|discography|anthology)\\b");
+
+    /**
+     * The possessive itself: "acdc's ...", "the art of noise's ...", "the
+     * doors' ...". A leading play verb is tolerated so this gives the same
+     * answer for a whole utterance as for the query already stripped out of
+     * it - callers pass both.
+     */
+    private static final Pattern POSSESSIVE_ARTIST = Pattern.compile(
+            "(?i)^\\s*(?:(?:please\\s+)?(?:play|put\\s+on|throw\\s+on|start\\s+playing"
+            + "|shuffle|listen\\s+to)\\s+)?(?:the\\s+)?"
+            + "([a-z0-9][a-z0-9 &.'’/+-]*?)['’]s?\\s+");
+
+    /**
+     * "... album by the cure" - the artist named outright at the end, but only
+     * with a release word standing in front of "by". Titles carry a "by" of
+     * their own - "Stand By Me", "Fly By Night", "One By One" - and a hint
+     * taken out of one of those ("me", "night") would reject the very record
+     * that was asked for.
+     */
+    private static final Pattern ARTIST_BY = Pattern.compile(
+            "(?i)\\b(?:albums?|records?|lps?|eps?|songs?|tracks?|singles?|hits"
+            + "|anthology|discography|music|stuff|anything|something)\\s+by\\s+"
+            + "([a-z0-9][a-z0-9 &.'’/+-]{1,40}?)\\s*$");
+
+    /**
+     * The artist these words NAME, when they name one as the owner of a
+     * described release - "acdc's most popular album" -> "acdc", "the best
+     * album by the cure" -> "the cure". Null when the words are (or contain) a
+     * title rather than a description, because then the title is what should
+     * be matched and an artist check would reject the real record.
+     *
+     * This is the guard that was missing when "acdc's 2nd most popular album"
+     * played an album called "Most Popular Nursery Rhymes": the relevance
+     * check compares the words against the TITLE only, and two of them
+     * happened to be in it. Nothing ever asked whose record it was.
+     */
+    static String artistHint(String phrase) {
+        if (phrase == null || phrase.trim().isEmpty()) {
+            return null;
+        }
+        Matcher by = ARTIST_BY.matcher(phrase);
+        if (by.find()) {
+            return by.group(1).trim();
+        }
+        if (!POSSESSIVE_DESC.matcher(phrase).find()) {
+            return null;                            // a title, not a description
+        }
+        Matcher m = POSSESSIVE_ARTIST.matcher(phrase);
+        return m.find() ? m.group(1).trim() : null;
+    }
+
+    /** Whether a Spotify credit is the artist the words asked for. */
+    static boolean artistIs(String hint, String actual) {
+        if (hint == null || hint.isEmpty()) {
+            return true;                            // nothing was claimed
+        }
+        String a = squash(hint);
+        String b = squash(actual);
+        return !a.isEmpty() && !b.isEmpty() && (b.contains(a) || a.contains(b));
+    }
+
+    /** Comparable form: lowercase, no "the", letters and digits only. */
+    private static String squash(String s) {
+        return s == null ? "" : s.toLowerCase(Locale.US)
+                .replaceAll("^the\\s+", "").replaceAll("[^a-z0-9]", "");
+    }
+
     /** Outcome of a resolution attempt: exactly one field is non-null. */
     private static final Pattern LIST_COUNT = Pattern.compile(
             "\\btop\\s+(\\d{1,2})\\b|\\b(\\d{1,2})\\s+(?:best\\s+|top\\s+|greatest\\s+)?"
@@ -1258,6 +1359,15 @@ public final class Commands {
      * Spotify.
      */
     static Resolved resolveDescriptive(Context ctx, String descr, String contentType) {
+        return resolveDescriptive(ctx, descr, contentType, null);
+    }
+
+    /**
+     * @param said what the live voice model already told the user about this
+     *             request, or null. Reaches the resolver's prompt only - never
+     *             the classifiers, which would mis-read free prose.
+     */
+    static Resolved resolveDescriptive(Context ctx, String descr, String contentType, String said) {
         if (!Media.spotifyConfigured(ctx)) {
             return null;
         }
@@ -1267,10 +1377,20 @@ public final class Commands {
         if (!isDescriptive(descr, contentType)) {
             return null;                            // literal fast path, zero LLM calls
         }
-        org.json.JSONObject r = Llm.resolveMusic(ctx, descr,
+        // The spoken sentence joins the request HERE - after the classifiers
+        // above have decided what kind of request this is, and only for the
+        // resolver that has to name a release.
+        String ask = said == null || said.trim().isEmpty() ? descr
+                : descr + ". The assistant has already told the user: \"" + said.trim() + "\"";
+        org.json.JSONObject r = Llm.resolveMusic(ctx, ask,
                 ("album".equals(contentType) || "playlist".equals(contentType)) ? "album" : null);
         if (r == null) {
-            return null;                            // knowledge unavailable -> literal path
+            // Knowledge unavailable. This used to fall through to the literal
+            // path, which searched Spotify for the DESCRIPTION's words and
+            // played whatever came back - the wrong album, confidently. A
+            // description with no resolver behind it has no honest answer.
+            return Resolved.say("♪ I can't work out which release that is right now"
+                    + " - name it and I'll play it.");
         }
         String artist = r.optString("artist", "").trim();
         String title = r.optString("title", "").trim();
@@ -1473,7 +1593,7 @@ public final class Commands {
                 case "media.play": {
                     // Descriptive resolution on the phone too (Spotify only).
                     if (!"youtube".equals(cmd.due)) {
-                        Resolved rd = resolveDescriptive(ctx, cmd.descr, cmd.contentType);
+                        Resolved rd = resolveDescriptive(ctx, cmd.descr, cmd.contentType, cmd.said);
                         if (rd != null) {
                             String out;
                             if (rd.say != null) {
@@ -1536,7 +1656,7 @@ public final class Commands {
                     // resolved by the model to a concrete name, verified on
                     // Spotify, then played by URI on the Sonos. Literal requests
                     // return null here and fall straight through, unchanged.
-                    Resolved rd = resolveDescriptive(ctx, cmd.descr, cmd.contentType);
+                    Resolved rd = resolveDescriptive(ctx, cmd.descr, cmd.contentType, cmd.said);
                     if (rd != null) {
                         if (rd.say != null) {
                             return rd.say;

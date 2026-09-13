@@ -380,3 +380,57 @@ play rock and roll	single
 what's the weather in oakland	single
 remind me to pet the dog at 11:20 AM, Jarvis.	single
 navigate to 5 main street, oakland	single
+
+# --- descriptive play phrases: the resolver must name the release, never a literal search ---
+play art of noise's most popular album	descriptive
+play the art of noise's most popular album	descriptive
+play the best known album by the cure	descriptive
+play depeche mode's biggest album	descriptive
+play the best-selling album by adele	descriptive
+play the first album by the cure	descriptive
+play the latest album by taylor swift	descriptive
+# --- and literal titles stay literal ---
+play the final countdown	literal
+play last christmas by wham	literal
+play who's afraid of the art of noise	literal
+play popular by nada surf	literal
+play the album in visible silence	literal
+
+# --- artistHint: whose record was asked for (null = a title, leave it alone) ---
+play acdc's 2nd most popular album	hint:acdc
+play the art of noise's most popular album	hint:art of noise
+play the doors' greatest hits	hint:doors
+play depeche mode's biggest album	hint:depeche mode
+play the best album by the cure	hint:the cure
+play anything by guns n' roses	hint:guns n' roses
+play queen's first record	hint:queen
+# --- and these name a TITLE: no artist claim, literal search must not be blocked ---
+play sgt pepper's lonely hearts club band	hint:-
+play guns n' roses	hint:-
+play sinead o'connor	hint:-
+play nothing compares 2 u	hint:-
+play the queen's gambit soundtrack	hint:-
+play ladies of the canyon	hint:-
+# --- ranked superlatives are descriptions, not titles ---
+play acdc's 2nd most popular album	descriptive
+play the third biggest album by metallica	descriptive
+play queen's most famous song	descriptive
+play the most streamed album by drake	descriptive
+
+# --- regressions the artist guard must NOT cause: a title's own 'by' is not a claim ---
+play stand by me	hint:-
+play the album stand by me	hint:-
+play fly by night	hint:-
+play one by one	hint:-
+play knocked out loaded	hint:-
+# --- but a described release names its artist ---
+play the best album by the cure	hint:the cure
+play the greatest hits by queen	hint:queen
+play anything by guns n' roses	hint:guns n' roses
+# --- bare superlatives inside real titles stay literal ---
+play biggest part of me	literal
+play breakthrough	literal
+play signature	literal
+# --- but describe a release and they resolve ---
+play depeche mode's biggest album	descriptive
+play the biggest album by abba	descriptive
