@@ -71,6 +71,27 @@
             </intent-filter>
         </activity>
 
+        <!-- A second, headless launcher entry ("Jarvis Talk") whose only job is
+             to toggle the live voice session and get off the screen - see
+             TalkActivity. This is what a hardware shortcut (the side button's
+             own "Apps" picker, Settings > Advanced features > Side button)
+             actually launches: that picker can only fire a target's ordinary
+             launch intent, no extras, so MainActivity's own icon can't be
+             told "open, but also start talking" - a distinct icon can.
+             NoDisplay + finish() before any window shows keeps it invisible. -->
+        <activity
+            android:name=".TalkActivity"
+            android:exported="true"
+            android:label="@string/talk_name"
+            android:icon="@drawable/ic_talk"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- specialUse: a personal assistant reading a debug stream; none of the
              standard FGS types (camera, location, mediaPlayback...) describe it. -->
         <service

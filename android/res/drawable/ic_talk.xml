@@ -1,0 +1,21 @@
+<!-- The second launcher icon, for the side-button shortcut: same dark tile as
+     the main app, a microphone instead of the glasses, so the two are told
+     apart at a glance in an app picker despite sharing a label prefix. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#171A23"
+        android:pathData="M10,0 h28 a10,10 0 0 1 10,10 v28 a10,10 0 0 1 -10,10 h-28 a10,10 0 0 1 -10,-10 v-28 a10,10 0 0 1 10,-10 z" />
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M24,10 a6,6 0 0 1 6,6 v10 a6,6 0 0 1 -12,0 v-10 a6,6 0 0 1 6,-6 z" />
+    <path
+        android:fillColor="#7C5CFF"
+        android:pathData="M15,24 a1.8,1.8 0 0 1 1.8,1.8 a7.2,7.2 0 0 0 14.4,0 a1.8,1.8 0 0 1 3.6,0 a10.8,10.8 0 0 1 -9,10.65 v3.75 a1.8,1.8 0 0 1 -3.6,0 v-3.75 a10.8,10.8 0 0 1 -9,-10.65 a1.8,1.8 0 0 1 1.8,-1.8 z" />
+    <path
+        android:fillColor="#3ECF8E"
+        android:pathData="M35.2,7.4 h2.4 v4.0 h4.0 v2.4 h-4.0 v4.0 h-2.4 v-4.0 h-4.0 v-2.4 h4.0 z" />
+</vector>
