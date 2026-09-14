@@ -36,6 +36,9 @@ public final class Prefs {
     /** Seconds of silence before a live voice session hangs up by itself -
      *  it bills per second while open. */
     public static final String TALK_IDLE = "talk.idle_seconds";
+    /** Hang the live voice session up once it has started music or radio -
+     *  the wearer is listening to that now, not talking. */
+    public static final String TALK_HANGUP_MEDIA = "talk.hangup_after_media";
     public static final String SERPAPI_KEY = "search.serpapi_key";
     public static final String SEARCH_LOCATION = "search.location";
     public static final String SEARCH_MODE = "search.mode";

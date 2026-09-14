@@ -150,14 +150,25 @@ final class Tools {
                             "Words that appear in the note")), "query")));
             t.add(new Spec("play_music",
                     "Play a song, artist, album, playlist, genre or mood. Spotify unless "
-                    + "the user asks for YouTube or a video.", true,
+                    + "the user asks for YouTube or a video. For YouTube, the user can "
+                    + "steer the search: 'the latest video from <channel>' -> "
+                    + "youtube_channel + youtube_sort=newest; 'the most popular video "
+                    + "about X' -> youtube_sort=popular; 'something new about X this "
+                    + "week' -> youtube_since=week. YouTube watch history and the "
+                    + "subscriptions feed are NOT available - say so if asked.", true,
                     params(new JSONObject()
                             .put("query", prop("string", "What to play, as the user said it"))
                             .put("service", choice("Where to find it", "spotify", "youtube"))
                             .put("kind", choice("What the query names", "track", "album", "playlist"))
                             .put("shuffle", prop("boolean", "Shuffle the album or playlist"))
                             .put("room", prop("string",
-                                    "A Sonos room name to play there; omit for the phone")),
+                                    "A Sonos room name to play there; omit for the phone"))
+                            .put("youtube_sort", choice("YouTube only: how to rank results",
+                                    "relevance", "newest", "popular"))
+                            .put("youtube_channel", prop("string",
+                                    "YouTube only: a channel name to search within"))
+                            .put("youtube_since", choice("YouTube only: only videos this recent",
+                                    "week", "month", "year")),
                             "query")));
             t.add(new Spec("play_radio", "Play an internet radio station by name or genre.",
                     true, params(new JSONObject()
@@ -397,6 +408,9 @@ final class Tools {
                         : "playlist".equals(kind) ? "playlist" : null;
                 c.shuffle = a.optBoolean("shuffle", false);
                 c.descr = q;                                // lets the knowledge resolver see the wording
+                c.ytSort = s(a, "youtube_sort", null);
+                c.ytChannel = s(a, "youtube_channel", null);
+                c.ytSince = s(a, "youtube_since", null);
                 return Commands.run(ctx, c);
             }
             case "play_radio": {

@@ -196,6 +196,19 @@ public class MainActivity extends Activity {
                 + "Without a YouTube key, \"play X on YouTube\" opens a search rather "
                 + "than starting the top result."));
 
+        // The notes the assistant holds. They live in its own store - not in
+        // the phone's Notes app, which no third-party app may write to - so
+        // until now the only way to see one was to ask for it out loud, and a
+        // wearer who went looking in Notes found nothing and assumed it was
+        // never saved. Read-only here; "forget the note about X" deletes.
+        root.addView(heading2("Notes"));
+        LinearLayout notesCard = card(root);
+        notesView = hint("");
+        notesCard.addView(notesView);
+        notesCard.addView(hint("Kept by Jarvis, not the phone's Notes app. Dictate with "
+                + "\"make a note that…\", read back with \"what are my notes\", delete "
+                + "with \"forget the note about…\"."));
+
         root.addView(heading2("On the glasses"));
         LinearLayout lens = card(root);
         toggle(lens, "Quiet cards (no phone popups)", Prefs.QUIET_CARDS, true);
@@ -643,7 +656,31 @@ public class MainActivity extends Activity {
         listenButton.postDelayed(again, 5000);
     }
 
+    private TextView notesView;
+
+    /** The saved notes, newest first, or a line saying there are none. */
+    private String notesText() {
+        java.util.List<org.json.JSONObject> all = Notes.all(this);
+        if (all.isEmpty()) {
+            return "No notes yet.";
+        }
+        StringBuilder sb = new StringBuilder();
+        java.text.SimpleDateFormat when = new java.text.SimpleDateFormat("MMM d", java.util.Locale.US);
+        for (org.json.JSONObject n : all) {
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            long at = (long) (n.optDouble("created", 0) * 1000);
+            sb.append("▤ ").append(n.optString("text", ""))
+                    .append(at > 0 ? "   (" + when.format(new java.util.Date(at)) + ")" : "");
+        }
+        return sb.toString();
+    }
+
     private void refresh() {
+        if (notesView != null) {
+            notesView.setText(notesText());
+        }
         boolean running = Prefs.bool(this, Prefs.RUNNING, false);
         if (listenButton != null) {
             listenButton.setText(running ? "●  Glasses listening  —  tap to stop"

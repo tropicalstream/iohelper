@@ -369,6 +369,15 @@ public final class Commands {
          * prompt and nothing else.
          */
         public String said;
+        /**
+         * YouTube navigation, from the play_music tool: how to rank the search
+         * (relevance | newest | popular), a channel to search within, and how
+         * far back to look (week | month | year). All optional; null means the
+         * plain top hit, which is what a spoken "play X on YouTube" gets.
+         */
+        public String ytSort;
+        public String ytChannel;
+        public String ytSince;
 
         Cmd(String kind, int seconds, String text) {
             this(kind, seconds, text, null, false);
@@ -1529,7 +1538,22 @@ public final class Commands {
         return "drive";
     }
 
+    /**
+     * Run a command. This is the one choke point every play goes through -
+     * a crown press, a voice-session delegation, or a tool call all end here -
+     * so it is where the "what is playing" poll is told the assistant itself
+     * just started something and should not announce the switch as news.
+     */
     public static String run(Context ctx, Cmd cmd) {
+        String out = run0(ctx, cmd);
+        if (out != null && (Media.playing(out)
+                || (out.startsWith("◉") && !out.contains("?")))) {
+            Proactive.playbackStarted();
+        }
+        return out;
+    }
+
+    private static String run0(Context ctx, Cmd cmd) {
         try {
             switch (cmd.kind) {
                 case "timer": {
@@ -1624,7 +1648,7 @@ public final class Commands {
                         }
                     }
                     String played = "youtube".equals(cmd.due)
-                            ? Media.youtube(ctx, cmd.text)
+                            ? Media.youtube(ctx, cmd.text, cmd.ytSort, cmd.ytChannel, cmd.ytSince)
                             : Media.spotify(ctx, cmd.text, cmd.contentType, cmd.shuffle);
                     // A speaker was named but playback only reaches the phone:
                     // say where it actually went rather than let it look as

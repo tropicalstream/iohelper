@@ -864,6 +864,34 @@ catalogue, not the artist's music. To reach the editorial "This Is" playlists
 directly, the Spotify app would need to be taken out of development mode (an
 extended-quota review in the Spotify developer dashboard).
 
+## Steering YouTube by voice, and what it cannot reach
+
+"Play X on YouTube" plays the top hit. With a **YouTube Data API key** set
+(Services → YouTube key), the voice session can also steer the search, through
+three optional `play_music` parameters the model fills in from the phrasing:
+
+| Said | What it does |
+| --- | --- |
+| "the latest video from Veritasium" | searches within that channel, newest first |
+| "the most popular video about sourdough" | ranks by view count |
+| "something new about the Mars rover this week" | only videos from the last week / month / year |
+
+Channel steering resolves the spoken name to a channel id first, because a
+plain search for "Veritasium rockets" finds videos *about* the channel as
+readily as videos *from* it. **Without the Data API key** the SerpApi fallback
+still plays the top hit but has no ordering, so these three do nothing there.
+
+Two things people ask for that are not on the table, so the assistant is told
+to say so rather than pretend:
+
+- **Watch history.** Google removed it from the Data API in 2016 — the
+  `history` playlist comes back empty for every app, with no workaround. No
+  third-party app can read your YouTube history.
+- **The subscriptions feed.** This one *exists* in the API but needs a Google
+  OAuth grant, the same kind of one-time browser sign-in the Spotify playback
+  path uses. It is not wired up; adding it would be a `youtube-auth.py` next to
+  `spotify-auth.py` and a refresh token in prefs.
+
 ## Resolving a described request, not just a named one (`Commands.resolveDescriptive`)
 
 "Play the first album by The Cure" used to fail: the parser handed Spotify the

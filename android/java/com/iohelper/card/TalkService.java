@@ -98,7 +98,10 @@ public class TalkService extends Service {
             + "are humming, which place they mean - say it by name as you delegate, and the "
             + "backend will do exactly that. Never guess a delegated RESULT (what is on the "
             + "calendar, the weather, whether an action worked) - wait for it, then say it "
-            + "as given. Keep listening while the user pauses to think, and do not treat a "
+            + "as given. Notes and to-dos are kept INSIDE this assistant, never in the "
+            + "phone's Notes or any other app: when a note is taken, say it is noted and "
+            + "that 'what are my notes' reads them back - never say it was saved to an "
+            + "app. Keep listening while the user pauses to think, and do not treat a "
             + "cough, music or nearby conversation as a request.";
 
     // ---- what the screen reads ------------------------------------------------
@@ -948,6 +951,17 @@ public class TalkService extends Service {
             // on a delegation that was in fact finished.
             String say = spoken(line);
             deliver(id, say);
+            // Music is the end of the conversation, not a turn in it: once
+            // something is playing the wearer is listening to THAT, and an
+            // open session is a microphone left on and a meter still running.
+            // Let the model finish saying what started, then hang up.
+            boolean started = Media.playing(line)
+                    || (line.startsWith("◉") && !line.contains("?"));
+            if (started && Prefs.bool(this, Prefs.TALK_HANGUP_MEDIA, true)) {
+                waitForSpeechToEnd(12000);
+                Log.i(TAG, "media started - hanging up");
+                hangUp("media started");
+            }
         } catch (Throwable t) {
             Log.w(TAG, "delegate: " + t);
             deliver(id, "Something went wrong with that.");
@@ -1107,6 +1121,25 @@ public class TalkService extends Service {
         if (!card.isEmpty()) {
             Cards.postSequence(this, Cards.title(this), card, "answer");
             Log.i(TAG, "  showed gpt-live's own answer (" + answer.length() + " chars)");
+        }
+    }
+
+    /**
+     * Block until the model has stopped talking: no audio for a beat and a
+     * half after it last spoke. Bounded, so a model that never goes quiet
+     * cannot hold the hang-up forever.
+     */
+    private void waitForSpeechToEnd(long maxMs) {
+        long deadline = System.currentTimeMillis() + maxMs;
+        while (running && System.currentTimeMillis() < deadline) {
+            if (spokeAt > 0 && System.currentTimeMillis() - spokeAt > 1500) {
+                return;
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                return;
+            }
         }
     }
 

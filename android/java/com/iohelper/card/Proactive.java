@@ -53,6 +53,28 @@ public final class Proactive {
                 }
             };
     private static final long RECENT_MS = 10 * 60_000;
+    /**
+     * When the assistant itself last started playback, and how long after that
+     * the poll stays quiet and only re-baselines.
+     *
+     * Measured: "play X" through the voice session, and a moment later the
+     * glasses showed the PREVIOUS YouTube video's title. The play card had
+     * already said what was starting; then the 15 s poll read the media
+     * sessions mid-switch, found the old video still reporting as the active
+     * one, saw a key that was not the remembered track (it had been retired
+     * by the 5-minute stop rule), and announced it as news. The seeding fix
+     * below covers only the first poll after startup; this covers every play
+     * the assistant starts. During the grace window whatever the sessions
+     * show is silently adopted as the baseline - by the window's end that is
+     * the new track, so it is neither announced twice nor mistaken for a
+     * change.
+     */
+    private static volatile long playbackStartedAt;
+    private static final long PLAY_GRACE_MS = 45_000;
+
+    static void playbackStarted() {
+        playbackStartedAt = System.currentTimeMillis();
+    }
 
     private static synchronized boolean announcedRecently(String key) {
         Long at = RECENT.get(key);
@@ -150,6 +172,12 @@ public final class Proactive {
                     // got answered with the PREVIOUS song, read from a session
                     // that had not switched over yet.
                     trackSeeded = true;
+                    lastTrackKey = t.key();
+                    stoppedSince = 0;
+                } else if (System.currentTimeMillis() - playbackStartedAt < PLAY_GRACE_MS) {
+                    // The assistant just started something itself and its own
+                    // card already named it. Adopt whatever the sessions show
+                    // as the baseline, silently - see playbackStartedAt.
                     lastTrackKey = t.key();
                     stoppedSince = 0;
                 } else if (t.playing) {

@@ -1061,6 +1061,21 @@ public final class Media {
     }
 
     public static String youtube(Context ctx, String query) {
+        return youtube(ctx, query, null, null, null);
+    }
+
+    /**
+     * Steerable YouTube: rank by relevance / newest / popular, search within a
+     * channel, and limit how recent. Only the Data API key can do any of this;
+     * the SerpApi fallback has no ordering and plays the plain top hit.
+     *
+     * What is deliberately NOT here, because the API cannot do it: the watch
+     * history (removed from the Data API in 2016 - the history playlist is
+     * empty for every app), and the subscriptions feed, which exists but needs
+     * a Google OAuth grant this app does not hold.
+     */
+    public static String youtube(Context ctx, String query, String sort, String channel,
+                                 String since) {
         String key = Prefs.str(ctx, Prefs.YOUTUBE_KEY, "");
         if (key.isEmpty()) {
             // No Google key needed: SerpApi has a youtube engine, and the key for
@@ -1090,11 +1105,45 @@ public final class Media {
                     YT_GLYPH + " YouTube search: " + query);
         }
         try {
-            String resp = http(YT_SEARCH_URL + "?part=snippet&type=video&maxResults=1&q="
-                    + enc(query) + "&key=" + enc(key), "GET", null, null, null, 15000);
+            StringBuilder url = new StringBuilder(YT_SEARCH_URL)
+                    .append("?part=snippet&type=video&maxResults=1&key=").append(enc(key));
+            // Within a channel: resolve the spoken name to an id first. A plain
+            // "q=<channel> <query>" would just find videos ABOUT the channel.
+            if (channel != null && !channel.trim().isEmpty()) {
+                String cResp = http(YT_SEARCH_URL + "?part=snippet&type=channel&maxResults=1&q="
+                        + enc(channel) + "&key=" + enc(key), "GET", null, null, null, 15000);
+                JSONArray ch = new JSONObject(cResp).getJSONArray("items");
+                if (ch.length() == 0) {
+                    return YT_GLYPH + " No YouTube channel called " + channel + ".";
+                }
+                url.append("&channelId=").append(enc(ch.getJSONObject(0)
+                        .getJSONObject("id").getString("channelId")));
+            }
+            // "The latest from" a channel with no topic means the channel's
+            // newest upload, which needs an empty query and a date order.
+            String q = query == null ? "" : query.trim();
+            if (!q.isEmpty()) {
+                url.append("&q=").append(enc(q));
+            } else if (channel == null) {
+                return YT_GLYPH + " What should I look for on YouTube?";
+            } else if (sort == null) {
+                sort = "newest";
+            }
+            if ("newest".equals(sort)) {
+                url.append("&order=date");
+            } else if ("popular".equals(sort)) {
+                url.append("&order=viewCount");
+            }
+            long days = "week".equals(since) ? 7 : "month".equals(since) ? 31
+                    : "year".equals(since) ? 366 : 0;
+            if (days > 0) {
+                url.append("&publishedAfter=").append(enc(java.time.Instant.now()
+                        .minus(days, java.time.temporal.ChronoUnit.DAYS).toString()));
+            }
+            String resp = http(url.toString(), "GET", null, null, null, 15000);
             JSONArray items = new JSONObject(resp).getJSONArray("items");
             if (items.length() == 0) {
-                return YT_GLYPH + " Nothing on YouTube for " + query + ".";
+                return YT_GLYPH + " Nothing on YouTube for " + (q.isEmpty() ? channel : q) + ".";
             }
             JSONObject first = items.getJSONObject(0);
             String id = first.getJSONObject("id").getString("videoId");
