@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Mirrors the phone's on-screen YouTube captions onto the glasses.
@@ -180,6 +181,30 @@ public class CaptionListener extends AccessibilityService {
         return "caption".equals(Cards.lastKind) || Cards.msSinceLastCard() >= ANSWER_GRACE_MS;
     }
 
+    /**
+     * Player furniture that is not a caption.
+     *
+     * Measured: the glasses filled up with "466 watching" and "1 view". In
+     * YouTube's tree "subtitle" names the secondary METADATA line as well as
+     * the closed-caption view, so the shape scan below was reading a view
+     * counter and posting it as speech. Anchored to the whole string, so a real
+     * caption that merely mentions one of these words is untouched - only text
+     * that IS nothing but a counter, a duration or a badge is thrown away.
+     */
+    private static final Pattern NOISE = Pattern.compile(
+            "(?i)^\\s*(?:"
+            + "[\\d,.]+\\s*[kmb]?\\s*(?:views?|watching|waiting|subscribers?|likes?)"
+            // "Premieres Sep 14 at 3:00 PM" is a badge; "premieres are always
+            // chaotic backstage" is somebody talking. The digit is what tells
+            // them apart, so require one rather than swallowing the whole line.
+            + "|live(?:\\s+now)?|premieres?\\b(?=.*\\d).*|\\d+:\\d{2}(?::\\d{2})?"
+            + "|shorts?|subscribed?|verified|auto-?generated"
+            + ")\\s*$");
+
+    private static boolean noise(String s) {
+        return s.isEmpty() || NOISE.matcher(s).matches();
+    }
+
     /** The caption text currently on screen, or "" when there is none. */
     private String captionOf(AccessibilityNodeInfo root) {
         for (String id : KNOWN_IDS) {
@@ -190,14 +215,15 @@ public class CaptionListener extends AccessibilityService {
                     append(sb, textOf(n));
                 }
                 String s = Cards.sanitize(sb.toString());
-                if (!s.isEmpty()) {
+                if (!noise(s)) {
                     return s;
                 }
             }
         }
         StringBuilder sb = new StringBuilder();
         scan(root, sb, 0);
-        return Cards.sanitize(sb.toString());
+        String s = Cards.sanitize(sb.toString());
+        return noise(s) ? "" : s;
     }
 
     /**
@@ -213,7 +239,17 @@ public class CaptionListener extends AccessibilityService {
         String id = n.getViewIdResourceName();
         if (id != null) {
             String low = id.toLowerCase(Locale.US);
-            if (low.contains("subtitle") || low.contains("caption")) {
+            // "caption" is unambiguous. "subtitle" is NOT: YouTube uses it for
+            // the secondary metadata line under a title as well as for the
+            // closed-caption view, and matching it bare is what put "1 view" on
+            // the glasses. Require a second word that only the player's caption
+            // views carry - every id in KNOWN_IDS still matches, a plain
+            // ":id/subtitle" no longer does.
+            boolean caption = low.contains("caption")
+                    || (low.contains("subtitle")
+                        && (low.contains("window") || low.contains("player")
+                            || low.contains("text") || low.contains("view")));
+            if (caption) {
                 append(out, textOf(n));
             }
         }
