@@ -356,7 +356,7 @@ public class AssistantService extends Service {
                 conn = LocalAdb.connect(this);
                 // -T 1 starts at "now" so a reconnect never replays old speech
                 AdbStream stream = conn.open("shell:logcat -v time -T 1");
-                status("listening (wake word: " + Prefs.trigger(this) + ")");
+                status("listening - press the crown to ask");
                 backoff = 5;
                 consecutiveFailures = 0;
                 if (outage) {                       // came back on its own
@@ -751,7 +751,7 @@ public class AssistantService extends Service {
         if (line.isEmpty()) {
             // A silent hand-off, or nothing survived sanitising (an emoji-only
             // reply); don't leave the status saying "thinking".
-            status("listening (wake word: " + Prefs.trigger(this) + ")");
+            status("listening - press the crown to ask");
             return;
         }
         if (model) {
@@ -772,7 +772,7 @@ public class AssistantService extends Service {
         } else {
             Cards.post(this, Cards.title(this), line, r.kind);
         }
-        status("listening (wake word: " + Prefs.trigger(this) + ")");
+        status("listening - press the crown to ask");
     }
 
     public static void start(Context c) {

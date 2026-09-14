@@ -139,15 +139,19 @@ public class MainActivity extends Activity {
 
         root.addView(heading2("Voice"));
         LinearLayout voice = card(root);
-        final EditText trigger = field(voice, "Wake word", Prefs.trigger(this), false);
-        voice.addView(hint("Say it at the END of the question - the glasses' VAD cuts "
-                + "the start of utterances."));
-        final EditText mangles = field(voice, "Known ASR mangles",
-                String.join(", ", Prefs.mangles(this)), false);
+        // NO WAKE WORD FIELD. On the channel that actually works there is
+        // nothing to say: the crown press IS the trigger. Offering a "wake word"
+        // to configure told people to say a word that does nothing, and the hint
+        // under it went further and told them where in the sentence to say it.
+        // The trigger and its known mis-hearings still live in Prefs - one said
+        // out of habit is still stripped from the question, and the alwayson
+        // gate still needs both - they are simply no longer presented as
+        // something to set while that source is broken in RayNeo's firmware.
         final EditText source = field(voice, "Source (assistant | alwayson)",
                 Prefs.source(this), false);
-        voice.addView(hint("assistant = crown press (works; RayNeo answers too). "
-                + "alwayson = hands-free, currently broken in RayNeo's firmware."));
+        voice.addView(hint("assistant = crown press, no wake word - pressing the crown "
+                + "is the trigger (RayNeo answers too). alwayson = hands-free, currently "
+                + "broken in RayNeo's firmware."));
 
         root.addView(heading2("Services"));
         LinearLayout keys = card(root);
@@ -235,8 +239,6 @@ public class MainActivity extends Activity {
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Prefs.put(MainActivity.this, Prefs.WAKE_TRIGGER, trigger.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.WAKE_MANGLES, mangles.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.WAKE_SOURCE, source.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.BACKEND, backend.getText().toString()
                         .trim().toLowerCase(java.util.Locale.ROOT));
@@ -653,7 +655,6 @@ public class MainActivity extends Activity {
                     running ? Color.parseColor("#1E5C41") : 0, 14));
         }
         statusView.setText((running ? "● listening" : "○ stopped")
-                + "   ·   wake word: " + Prefs.trigger(this)
                 + "   ·   source: " + Prefs.source(this)
                 + (Search.available(this) ? "   ·   search on" : "   ·   no search key")
                 + (Wireless.paired(this) ? "   ·   wireless paired" : "   ·   usb-armed only"));
