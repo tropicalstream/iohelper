@@ -18,6 +18,7 @@ public final class Media {
     public static String[][] verifyQueue(Context c, org.json.JSONObject p, int m) { return null; }
     public static String playTracks(Context c, String[] u, String l, boolean s) { return "stub"; }
     public static String youtube(Context c, String q) { return "stub"; }
+    public static String youtube(Context c, String q, String sort, String channel, String since) { return "stub"; }
     public static String assistant(Context c, String q) { return "stub"; }
     public static String navigate(Context c, String d, String m) { return "stub"; }
     /** Kept in step with the real Media: YouTube lines carry their own glyph. */

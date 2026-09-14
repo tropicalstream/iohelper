@@ -218,6 +218,11 @@ public class MainActivity extends Activity {
                 + "nowhere else. The phone's own alerts - reconnecting, pairing - are "
                 + "unaffected."));
         toggle(lens, "Live navigation on the glasses", Prefs.NAV_RELAY, true);
+        toggle(lens, "Wake the screen for navigation when locked", Prefs.NAV_WAKE, true);
+        lens.addView(hint("Google Maps will not start guidance behind the lock screen - the "
+                + "route loads and simply never begins. This lights the screen so it is one "
+                + "unlock from starting, and the card says so instead of claiming it is "
+                + "navigating. The lock itself is untouched."));
         lens.addView(hint("Relays Google Maps' own turn-by-turn, with the distance and "
                 + "ETA, and repeats the turn as you reach it. Needs Notification access."));
         toggle(lens, "Only navigation while driving", Prefs.NAV_FOCUS, false);
@@ -226,6 +231,12 @@ public class MainActivity extends Activity {
                 + "so nothing wipes the turn you are about to take. Answers to questions "
                 + "you actually ask still come through."));
         toggle(lens, "Mirror YouTube captions", Prefs.CAPTIONS, false);
+        final EditText capGap = field(lens, "Caption sampling gap (ms)",
+                String.valueOf(Prefs.integer(this, Prefs.CAPTION_GAP, 350)), false);
+        lens.addView(hint("How closely captions follow the video. 350 keeps up with "
+                + "speech; raise towards 1500 if lines are replaced before you can read "
+                + "them. Below 200 gains nothing - the screen read and the relay to the "
+                + "glasses cost more than the gap does."));
         lens.addView(hint("Shows the captions YouTube is ALREADY displaying on the phone. "
                 + "It never switches captions on for you - if they are off, there is "
                 + "nothing to mirror. Needs Accessibility access, below."));
@@ -266,6 +277,7 @@ public class MainActivity extends Activity {
                 Prefs.put(MainActivity.this, Prefs.SPOTIFY_ID, spotifyId.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SPOTIFY_SECRET, spotifySecret.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.YOUTUBE_KEY, youtubeKey.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.CAPTION_GAP, capGap.getText().toString().trim());
                 Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
                 refresh();
             }

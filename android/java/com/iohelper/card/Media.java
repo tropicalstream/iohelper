@@ -1011,6 +1011,42 @@ public final class Media {
         }
         String label = "⌖ Navigating to " + dest
                 + ("drive".equals(mode) ? "" : " (" + mode + ")");
+        // MAPS WILL NOT START GUIDANCE BEHIND THE LOCK SCREEN. Measured on
+        // device, screen off and screen on alike: the intent is delivered, Maps
+        // opens and becomes the resumed activity, and the route never starts -
+        // no maneuver is ever posted, so nothing reaches the lens either. This
+        // method reported success anyway, because it returned as soon as the
+        // shell call had not thrown and never looked at what happened next.
+        // That is the one thing this assistant may not do: claim it acted when
+        // it did not.
+        //
+        // The keyguard is the whole barrier - measured, with it out of the way
+        // the identical intent starts guidance at once and the turns reach the
+        // lens. This does NOT take it out of the way: it lights the screen so
+        // the loaded route is one unlock from starting, instead of a dark phone
+        // and silence, and says plainly that the unlock is what is missing.
+        //
+        // Why the side button looks exempt: that path starts the voice SERVICE,
+        // audio only, which needs no window and so meets no keyguard at all.
+        // Navigation needs a running activity, which is exactly what is blocked.
+        boolean locked = false;
+        try {
+            android.app.KeyguardManager km =
+                    (android.app.KeyguardManager) ctx.getSystemService(Context.KEYGUARD_SERVICE);
+            locked = km != null && km.isKeyguardLocked();
+        } catch (Exception ignored) {
+            // Cannot tell - say the optimistic thing rather than a wrong warning.
+        }
+        if (locked) {
+            if (Prefs.bool(ctx, Prefs.NAV_WAKE, true)) {
+                try {
+                    LocalAdb.shell(ctx, "input keyevent 224", 6000);   // KEYCODE_WAKEUP
+                } catch (Exception e) {
+                    android.util.Log.i("iohelperMedia", "wake: " + e);
+                }
+            }
+            label = "⌖ Route to " + dest + " is ready - unlock to start it";
+        }
         // Forget the previous trip BEFORE Maps starts posting this one. Changing
         // travel mode updates the same notification in place, and two trips from
         // the same spot open with identical first maneuvers, which the relay's
@@ -1078,6 +1114,14 @@ public final class Media {
                                  String since) {
         String key = Prefs.str(ctx, Prefs.YOUTUBE_KEY, "");
         if (key.isEmpty()) {
+            // The caller may have emptied `query` on purpose and put the name in
+            // `channel` instead (see Commands.YT_LATEST) - that split only means
+            // something to the Data API path below, which is not the one about
+            // to run. Fall back to searching the channel name as plain text:
+            // no date ordering without the Data API key, but a relevant result
+            // instead of a query left blank.
+            String q = (query == null || query.trim().isEmpty())
+                    && channel != null && !channel.trim().isEmpty() ? channel : query;
             // No Google key needed: SerpApi has a youtube engine, and the key for
             // it is already configured for search. Resolving to a watch URL is
             // what makes the video START - opening a results page just shows a
@@ -1087,22 +1131,22 @@ public final class Media {
             if (!serp.isEmpty()) {
                 try {
                     String resp = http("https://serpapi.com/search.json?engine=youtube"
-                            + "&search_query=" + enc(query) + "&api_key=" + enc(serp),
+                            + "&search_query=" + enc(q) + "&api_key=" + enc(serp),
                             "GET", null, null, null, 20000);
                     JSONArray vids = new JSONObject(resp).optJSONArray("video_results");
                     if (vids != null && vids.length() > 0) {
                         JSONObject v = vids.getJSONObject(0);
                         String link = v.optString("link", "");
                         if (link.contains("watch?v=")) {
-                            return open(ctx, link, YT_GLYPH + " " + v.optString("title", query));
+                            return open(ctx, link, YT_GLYPH + " " + v.optString("title", q));
                         }
                     }
                 } catch (Exception ignored) {
                     // fall through to the search page
                 }
             }
-            return open(ctx, "https://www.youtube.com/results?search_query=" + enc(query),
-                    YT_GLYPH + " YouTube search: " + query);
+            return open(ctx, "https://www.youtube.com/results?search_query=" + enc(q),
+                    YT_GLYPH + " YouTube search: " + q);
         }
         try {
             StringBuilder url = new StringBuilder(YT_SEARCH_URL)

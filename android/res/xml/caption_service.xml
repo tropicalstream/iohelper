@@ -4,12 +4,19 @@
      changes only. packageNames is the important line - without it this service
      would be handed the contents of every screen on the phone, which is far
      more than mirroring captions needs.
+
+     notificationTimeout is the platform's own throttle on how often this
+     service is told anything, and it is pure latency on a caption: at 300 ms a
+     line could already be a third of a second old before the app even heard
+     about it. 100 ms costs more events, which CaptionListener's own sampling
+     gap then discards cheaply - it stamps every sample, so the extra events
+     that find nothing cost one comparison rather than a tree walk.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds"
     android:canRetrieveWindowContent="true"
-    android:notificationTimeout="300"
+    android:notificationTimeout="100"
     android:packageNames="com.google.android.youtube,com.google.android.apps.bard,com.google.android.googlequicksearchbox"
     android:description="@string/caption_service_desc" />

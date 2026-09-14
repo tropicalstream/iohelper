@@ -272,6 +272,23 @@ public final class Commands {
     private static final Pattern DANGLING = Pattern.compile(
             "\\b(by|from|with|featuring|feat|ft|of|the|a|an|some)\\s*[.,!?]*$",
             Pattern.CASE_INSENSITIVE);
+    /**
+     * "the latest video (from/of) X", for YouTube only.
+     *
+     * Measured: "play the latest YouTube video KPFA Flashpoints" searched for
+     * the literal text "the latest video KPFA Flashpoints" - "latest" and
+     * "video" are not search terms, they are an instruction to SORT BY DATE,
+     * and left in as noise they actively hurt the relevance ranking. This is
+     * exactly the youtube_sort/youtube_channel steering the play_music TOOL
+     * already has (see Tools.java); this gives the phrase pattern the same
+     * capability, since a request this literal never reaches the model at all.
+     * The preposition is optional - "video KPFA Flashpoints" with nothing
+     * between them is how people actually say it.
+     */
+    private static final Pattern YT_LATEST = Pattern.compile(
+            "^(?:the\\s+)?(latest|newest|most\\s+recent|most\\s+popular|most\\s+viewed|top)\\s+"
+            + "(?:video|upload|episode|clip)?\\s*(?:(?:from|of|by)\\s+)?(.*)$",
+            Pattern.CASE_INSENSITIVE);
 
     /** Which service was named anywhere in the utterance, or null. */
     private static String serviceMentioned(String low) {
@@ -949,6 +966,24 @@ public final class Commands {
                     : serviceMentioned(low);
             q = q.replaceAll("(?i)\\b(?:on|from|in)?\\s*\\b(you ?tube|spotify)\\b", " ")
                     .replaceAll("\\s+", " ").trim();
+            // "the latest/newest/most popular video (from/of) X", YouTube only:
+            // recognise it as a sort + channel, not literal search text - see
+            // YT_LATEST. What is left after stripping it is the channel name;
+            // empty means no channel was named, and the request stays a plain
+            // (now word-cleaned) search rather than one polluted with "latest".
+            String ytSort = null;
+            String ytChannel = null;
+            if ("youtube".equals(service)) {
+                Matcher yl = YT_LATEST.matcher(q);
+                if (yl.matches()) {
+                    String sup = yl.group(1).toLowerCase(Locale.US);
+                    ytSort = sup.contains("popular") || sup.contains("viewed") || sup.equals("top")
+                            ? "popular" : "newest";
+                    String rest = yl.group(2).trim();
+                    ytChannel = rest.isEmpty() ? null : rest;
+                    q = "";
+                }
+            }
             // Strip the SPEAKER too. Without this, "play Dead Can Dance on
             // bathroom Sonos" searched for the whole phrase including the
             // speaker name, which is why the results were unrelated songs.
@@ -987,7 +1022,11 @@ public final class Commands {
                         .replaceAll("(?i)^\\s*(?:my|the)\\b\\s*", " ")
                         .replaceAll("\\s+", " ").trim();
             }
-            if (!q.isEmpty() && !DANGLING.matcher(q).find()) {
+            // ytChannel means YT_LATEST already resolved this to "this channel's
+            // own newest/most popular upload" and deliberately emptied q - that
+            // is a complete request, not a missing one, so it must not fall into
+            // the empty-q "didn't catch what to play" branch below.
+            if ((!q.isEmpty() || ytChannel != null) && !DANGLING.matcher(q).find()) {
                 // A named speaker means the speaker, not the phone. The whole
                 // utterance rides along so the room can be matched against what
                 // is actually on the network.
@@ -997,6 +1036,8 @@ public final class Commands {
                 c.shuffle = shuffled;
                 c.contentType = contentType;
                 c.descr = descr;
+                c.ytSort = ytSort;
+                c.ytChannel = ytChannel;
                 return c;
             }
             if (DANGLING.matcher(q).find() || (q.isEmpty() && parseDelay(low) <= 0)) {

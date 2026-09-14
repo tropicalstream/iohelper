@@ -64,6 +64,15 @@ public final class Prefs {
     /** Mirror the phone's on-screen YouTube captions to the glasses. */
     public static final String CAPTIONS = "captions.relay";
     /**
+     * How often the caption mirror may sample the screen, in milliseconds.
+     *
+     * The whole latency budget the app controls. Low follows the video closely
+     * and replaces the card often; high samples at reading speed and skips
+     * lines. Tunable because the right answer is a matter of taste and of how
+     * fast the video talks - see CaptionListener.
+     */
+    public static final String CAPTION_GAP = "captions.min_gap_ms";
+    /**
      * Apps whose notifications iohelper relays to the glasses IN FULL, paged
      * across cards, comma-separated package names. RayNeo's own mirror keeps
      * only the title and a truncated line and drops action buttons, so a
@@ -79,6 +88,16 @@ public final class Prefs {
     public static final String NAV_FOCUS = "nav.focus";
     /** Relay Google Maps live turn-by-turn to the glasses (NavListener). */
     public static final String NAV_RELAY = "nav.relay";
+    /**
+     * Light the screen when navigation is asked for while the phone is locked.
+     *
+     * Google Maps will not begin guidance behind a keyguard (measured: the
+     * intent lands, Maps opens, the route never starts). The route is still
+     * loaded, so this wakes the display and leaves the lock screen in front of
+     * it - one unlock away from guidance, rather than a dark phone and nothing
+     * happening. It does NOT touch the lock itself.
+     */
+    public static final String NAV_WAKE = "nav.wake_when_locked";
     public static final String RUNNING = "service.running";
     /** Whether the user WANTS the assistant running - which is not the same as
      *  whether it is. {@link #RUNNING} is cleared by onDestroy, and a reboot
