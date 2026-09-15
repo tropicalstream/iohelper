@@ -1015,7 +1015,11 @@ public class TalkService extends Service implements Live.Sink {
             boolean started = Media.playing(line)
                     || (line.startsWith(Radio.GLYPH) && !line.contains("?"));
             if (started && Prefs.bool(this, Prefs.TALK_HANGUP_MEDIA, true)) {
-                waitForSpeechToEnd(12000);
+                // Room for BOTH halves: the model has speechWaitMs() to start
+                // and a further eight seconds to finish. A flat 12 s would be
+                // spent entirely on waiting for Gemini to begin, leaving none
+                // for the sentence itself.
+                waitForSpeechToEnd(proto.speechWaitMs() + 8000);
                 Log.i(TAG, "media started - hanging up");
                 hangUp("media started");
             }
@@ -1198,7 +1202,26 @@ public class TalkService extends Service implements Live.Sink {
      * cannot hold the hang-up forever.
      */
     private void waitForSpeechToEnd(long maxMs) {
-        long deadline = System.currentTimeMillis() + maxMs;
+        long start = System.currentTimeMillis();
+        long deadline = start + maxMs;
+        // WAIT FOR IT TO BEGIN FIRST. This only tested for silence, which was
+        // accidentally fine on GPT-Live - that stream sends audio for as long
+        // as the session is open, so spokeAt was never stale. Gemini sends
+        // audio only while it is actually talking, so after the "one moment"
+        // the clock goes stale, the silence test passed immediately, and the
+        // hang-up cut off an answer that had not started yet. That is the
+        // "it cuts its own voice off when media starts" symptom: the model was
+        // about to speak, not finished speaking.
+        long begun = Math.min(deadline, start + proto.speechWaitMs());
+        while (running && spokeAt < start && System.currentTimeMillis() < begun) {
+            try {
+                Thread.sleep(150);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
+        // ...then for it to stop. Bounded either way, so a model that never
+        // speaks costs the budget rather than hanging the hang-up forever.
         while (running && System.currentTimeMillis() < deadline) {
             if (spokeAt > 0 && System.currentTimeMillis() - spokeAt > 1500) {
                 return;

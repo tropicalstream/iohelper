@@ -61,6 +61,16 @@ public final class Prefs {
      * rather than sending something it would reject.
      */
     public static final String TALK_VOICE = "talk.voice";
+    /**
+     * The GEMINI voice, kept apart from {@link #TALK_VOICE}.
+     *
+     * One shared field meant the setting could never be right for both: it read
+     * "willow" while Kore was speaking, because an OpenAI name is meaningless
+     * to Gemini and was being ignored. Showing the truth would have meant
+     * overwriting the other backend's choice. Two keys, and each screen shows
+     * the voice that backend will actually use.
+     */
+    public static final String TALK_VOICE_GEMINI = "talk.voice_gemini";
     /** Seconds of silence before a live voice session hangs up by itself -
      *  it bills per second while open. */
     public static final String TALK_IDLE = "talk.idle_seconds";

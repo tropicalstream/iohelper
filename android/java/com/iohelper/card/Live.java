@@ -177,6 +177,13 @@ interface Live {
             "gleam", "meridian", "bossa", "tempo", "beacon", "delta", "cinder",
         };
 
+        static final String DEFAULT_VOICE = "marin";
+
+        /** The names this backend accepts, for the settings pull-down. */
+        static String[] voices() {
+            return VOICES.clone();
+        }
+
         @Override
         public String voiceInUse(Context ctx) {
             String v = Prefs.str(ctx, Prefs.TALK_VOICE, "").trim();
@@ -461,14 +468,21 @@ interface Live {
             "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
         };
 
+        static final String DEFAULT_VOICE = "Kore";
+
         private String voice(Context ctx) {
-            String v = Prefs.str(ctx, Prefs.TALK_VOICE, "").trim();
+            String v = Prefs.str(ctx, Prefs.TALK_VOICE_GEMINI, "").trim();
             for (String known : VOICES) {
                 if (known.equalsIgnoreCase(v)) {
                     return known;
                 }
             }
-            return "Kore";
+            return DEFAULT_VOICE;
+        }
+
+        /** The names this backend accepts, for the settings pull-down. */
+        static String[] voices() {
+            return VOICES.clone();
         }
 
         @Override

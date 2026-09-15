@@ -156,7 +156,10 @@ public class MainActivity extends Activity {
         root.addView(heading2("Live voice"));
         LinearLayout live = card(root);
         picker(live, "BACKEND", Prefs.TALK_BACKEND,
-                Prefs.str(this, Prefs.TALK_BACKEND, "gemini"), "gemini", "openai");
+                Prefs.str(this, Prefs.TALK_BACKEND, "gemini"),
+                new String[]{"gemini", "openai"},
+                new String[]{"gemini  -  " + Prefs.str(this, Prefs.TALK_MODEL,
+                        Live.Gemini.MODEL), "openai  -  gpt-live-1"});
         live.addView(hint("Which model the talk button opens. gemini uses the "
                 + "Gemini key below and is FREE on the free tier, audio included; "
                 + "openai is gpt-live-1 on the OpenAI key and is not. Both "
@@ -173,17 +176,20 @@ public class MainActivity extends Activity {
                 + "about six. Every Live model is Live-API-only, so neither can "
                 + "serve as the text backend below; that stays a separate model."));
 
-        picker(live, "VOICE", Prefs.TALK_VOICE, Prefs.str(this, Prefs.TALK_VOICE, ""),
-                "", "Kore", "Puck", "Charon", "Fenrir", "Aoede", "Zephyr", "Leda", "Orus",
-                "marin", "cedar", "quartz", "ripple", "vesper", "willow", "stone",
-                "gleam", "meridian", "bossa", "tempo", "beacon", "delta", "cinder");
+        // Only the voices the SELECTED backend accepts. Offering both lists
+        // meant the field could name one nobody was using, and picking from
+        // the wrong half did nothing.
+        boolean gem = !"openai".equalsIgnoreCase(Prefs.str(this, Prefs.TALK_BACKEND, "gemini"));
+        String voiceKey = gem ? Prefs.TALK_VOICE_GEMINI : Prefs.TALK_VOICE;
+        String[] voiceNames = gem ? Live.Gemini.voices() : Live.OpenAi.voices();
+        String voiceDef = gem ? Live.Gemini.DEFAULT_VOICE : Live.OpenAi.DEFAULT_VOICE;
+        picker(live, "VOICE", voiceKey, voiceDef, voiceNames, voiceNames);
         live.addView(hint("Speaking now as: " + Live.of(this).voiceInUse(this)
-                + ". The first entry is blank, meaning each backend's own default. "
-                + "Kore through Orus are Gemini's; marin through cinder are "
-                + "OpenAI's, verified against the API. A name belonging to the "
-                + "OTHER backend is ignored rather than sent and refused - which "
-                + "is why this and the voice in use can differ. Takes effect on "
-                + "the next session; a voice cannot change under a running one."));
+                + ". These are " + (gem ? "Gemini's" : "OpenAI's") + " voices - each "
+                + "backend keeps its OWN, so switching backend above and reopening "
+                + "this screen shows that one's list and leaves this choice intact. "
+                + "Takes effect on the next session; a voice cannot change under a "
+                + "running one."));
 
         root.addView(heading2("Services"));
         LinearLayout keys = card(root);
@@ -199,7 +205,12 @@ public class MainActivity extends Activity {
                 + "session spends while it is OPEN, so the idle hang-up below is "
                 + "what keeps a forgotten session from eating the day's quota."));
         picker(keys, "LLM BACKEND", Prefs.BACKEND, Prefs.str(this, Prefs.BACKEND, "groq"),
-                "gemini", "openai", "groq");
+                new String[]{"gemini", "openai", "groq"},
+                new String[]{
+                    "gemini  -  " + Prefs.str(this, Prefs.GEMINI_MODEL, "gemini-3.8-flash"),
+                    "openai  -  " + Prefs.str(this, Prefs.OPENAI_MODEL, "gpt-5.6-luna"),
+                    "groq  -  " + Prefs.str(this, Prefs.GROQ_MODEL, "openai/gpt-oss-120b"),
+                });
         final EditText openaiKey = field(keys, "OpenAI API key",
                 Prefs.str(this, Prefs.OPENAI_KEY, ""), true);
         picker(keys, "OPENAI MODEL", Prefs.OPENAI_MODEL,
@@ -891,6 +902,18 @@ public class MainActivity extends Activity {
      */
     private android.widget.Spinner picker(ViewGroup parent, String label, final String key,
                                           String def, String... options) {
+        return picker(parent, label, key, def, options, options);
+    }
+
+    /**
+     * The same, with what is SHOWN separate from what is stored.
+     *
+     * So a backend row can read "gemini - gemini-3.8-flash" while still saving
+     * "gemini": the pref is a short key, but the useful thing to see is which
+     * model that key actually resolves to, which is otherwise two screens away.
+     */
+    private android.widget.Spinner picker(ViewGroup parent, String label, final String key,
+                                          String def, final String[] values, String[] shown) {
         TextView l = new TextView(this);
         l.setText(label);
         l.setTextColor(MUTED);
@@ -900,14 +923,17 @@ public class MainActivity extends Activity {
         parent.addView(l);
 
         final java.util.List<String> items = new java.util.ArrayList<>(
-                java.util.Arrays.asList(options));
+                java.util.Arrays.asList(values));
+        java.util.List<String> labels = new java.util.ArrayList<>(
+                java.util.Arrays.asList(shown));
         String current = Prefs.str(this, key, def);
         if (!items.contains(current)) {
             items.add(0, current);
+            labels.add(0, current.isEmpty() ? "(default)" : current);
         }
         android.widget.Spinner sp = new android.widget.Spinner(this);
         android.widget.ArrayAdapter<String> ad = new android.widget.ArrayAdapter<String>(
-                this, android.R.layout.simple_spinner_item, items) {
+                this, android.R.layout.simple_spinner_item, labels) {
             @Override
             public android.view.View getView(int pos, android.view.View convert,
                                              ViewGroup parentView) {

@@ -1168,6 +1168,11 @@ public final class Media {
     public static String youtube(Context ctx, String query, String sort, String channel,
                                  String since) {
         String key = Prefs.str(ctx, Prefs.YOUTUBE_KEY, "");
+        // NOT the Gemini key, tempting as it is. Both are Google API keys, but
+        // the Data API refuses one outright - measured: HTTP 401 "API keys are
+        // not supported by this API", because the YouTube Data API is not
+        // enabled on an AI Studio project. Falling back to it would turn every
+        // "play X on YouTube" into an auth error instead of a search.
         if (key.isEmpty()) {
             // The caller may have emptied `query` on purpose and put the name in
             // `channel` instead (see Commands.YT_LATEST) - that split only means
@@ -1185,10 +1190,30 @@ public final class Media {
             String serp = Prefs.str(ctx, Prefs.SERPAPI_KEY, "");
             if (!serp.isEmpty()) {
                 try {
+                    // SORT BY UPLOAD DATE when "latest" was asked for. This
+                    // path used to ignore `sort` entirely - the comment above
+                    // said "no date ordering without the Data API key" - so
+                    // "the latest video from X" played whatever was most
+                    // RELEVANT, which is how a 13-day-old episode came back as
+                    // the newest. "CAI=" is YouTube's own sort-by-upload-date
+                    // token, passed straight through by SerpApi's sp filter.
+                    String sp = "newest".equals(sort) ? "&sp=" + enc("CAI=") : "";
+                    android.util.Log.i("iohelperMedia", "youtube via serpapi: q=\"" + q
+                            + "\" sort=" + sort + (sp.isEmpty() ? "" : " (by date)"));
                     String resp = http("https://serpapi.com/search.json?engine=youtube"
-                            + "&search_query=" + enc(q) + "&api_key=" + enc(serp),
+                            + "&search_query=" + enc(q) + sp + "&api_key=" + enc(serp),
                             "GET", null, null, null, 20000);
                     JSONArray vids = new JSONObject(resp).optJSONArray("video_results");
+                    // What the sort actually produced, with ages, so "that is
+                    // not the newest" can be checked rather than argued about.
+                    for (int i = 0; vids != null && i < Math.min(3, vids.length()); i++) {
+                        JSONObject v0 = vids.optJSONObject(i);
+                        if (v0 != null) {
+                            android.util.Log.i("iohelperMedia", "  yt[" + i + "] "
+                                    + v0.optString("published_date", "?") + " - "
+                                    + v0.optString("title", "?"));
+                        }
+                    }
                     if (vids != null && vids.length() > 0) {
                         JSONObject v = vids.getJSONObject(0);
                         String link = v.optString("link", "");
