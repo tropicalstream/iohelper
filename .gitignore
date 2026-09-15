@@ -22,3 +22,6 @@ android/verify/build-cmd/
 # private device provisioning (package lists etc.) — never commit
 *.local.json
 iohelper-config.local.json
+
+# Local API key, never committed.
+geminikey.txt

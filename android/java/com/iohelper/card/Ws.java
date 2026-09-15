@@ -332,8 +332,22 @@ final class Ws {
         }
     }
 
+    /**
+     * Hand a completed frame to the listener.
+     *
+     * BINARY COUNTS TOO. This used to deliver only opcode 1, and dropped
+     * opcode 2 on the floor without a word - which is precisely what a server
+     * that sends its JSON as binary looks like from the outside: the socket
+     * connects, stays open, and nothing ever arrives. Gemini Live does exactly
+     * that, and the symptom was a session that timed out waiting for a reply
+     * it had already been sent.
+     *
+     * Both protocols spoken here are JSON over WebSocket, so the opcode is a
+     * framing detail rather than a type: decode either as UTF-8 and let the
+     * parser decide. A frame that is not JSON is ignored a layer up.
+     */
     private void deliver(int op, byte[] payload) {
-        if (op == 1) {
+        if (op == 1 || op == 2) {
             listener.onText(new String(payload, StandardCharsets.UTF_8));
         }
     }

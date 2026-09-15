@@ -80,7 +80,20 @@ interface Live {
 
     void parse(JSONObject ev, Sink sink);
 
-    /** The reply to a delegation, or null when this one takes no reply. */
+    /**
+     * A message that does NOT finish a delegation: an aside, a nudge to say
+     * something, or the greeting at the start of a session.
+     *
+     * Separate from {@link #answer} because the two are the same operation on
+     * one backend and opposites on the other. GPT-Live appends commentary as
+     * often as it likes and the delegation ends when it ends; a Gemini
+     * toolResponse COMPLETES the call, so sending "tell the user you are still
+     * looking that up" through it would finish the request with that sentence
+     * as its result.
+     */
+    JSONObject interim(String id, String text) throws Exception;
+
+    /** The reply that COMPLETES a delegation, or null when it cannot be sent. */
     JSONObject answer(String id, String text) throws Exception;
 
     /** A polite close, or null to just drop the socket. */
@@ -88,6 +101,20 @@ interface Live {
 
     /** Whether the close is acknowledged, so the hang-up knows to wait for it. */
     boolean acknowledgesClose();
+
+    /**
+     * Whether an interim message is SAFE to send while a delegation is still
+     * outstanding.
+     *
+     * GPT-Live is happy to be prodded mid-request - that is what the "still
+     * looking that up" nudges are for, and without them a slow backend leaves
+     * the wearer in silence. Gemini treats an ordinary turn arriving during a
+     * function call as the user changing the subject and answers with
+     * toolCallCancellation, abandoning the very request being chased. Measured
+     * on the device: the nudge cancelled the call, the result was then refused,
+     * and the answer only reached the wearer through deliver()'s fallback.
+     */
+    boolean interimDuringDelegation();
 
     /** Gemini unless the wearer has chosen otherwise. */
     static Live of(Context ctx) {
@@ -191,6 +218,11 @@ interface Live {
         }
 
         @Override
+        public JSONObject interim(String id, String text) throws Exception {
+            return answer(id, text);      // one channel; an append never ends it
+        }
+
+        @Override
         public JSONObject answer(String id, String text) throws Exception {
             return new JSONObject().put("type", "session.commentary.append")
                     .put("delegation_id", id == null ? JSONObject.NULL : id)
@@ -204,6 +236,11 @@ interface Live {
 
         @Override
         public boolean acknowledgesClose() {
+            return true;
+        }
+
+        @Override
+        public boolean interimDuringDelegation() {
             return true;
         }
     }
@@ -308,14 +345,36 @@ interface Live {
         }
 
         /**
-         * TALK_VOICE defaults to an OpenAI voice name, which Gemini rejects
-         * outright, so its own names are honoured only once one has actually
-         * been chosen for it.
+         * Gemini's own prebuilt voices, and the ONLY names it will accept.
+         *
+         * TALK_VOICE is shared with the OpenAI backend, so it routinely holds a
+         * name that means nothing here. Measured: a session configured with
+         * OpenAI's "willow" was closed by the server mid-handshake with
+         * 1007 "No matching speaker voice found for name: willow" - the whole
+         * conversation lost to one wrong string.
+         *
+         * So this ALLOW-LISTS what is known to work rather than blocking the
+         * handful of names the other backend happens to use today: an unknown
+         * name falls back to Kore instead of being sent and killing the
+         * session. Matching is case-insensitive but the canonical spelling is
+         * what goes on the wire, since the server is fussy about both.
          */
+        private static final String[] VOICES = {
+            "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede",
+            "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba",
+            "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar",
+            "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi",
+            "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
+        };
+
         private String voice(Context ctx) {
             String v = Prefs.str(ctx, Prefs.TALK_VOICE, "").trim();
-            return v.isEmpty() || v.equalsIgnoreCase("marin") || v.equalsIgnoreCase("cedar")
-                    ? "Kore" : v;
+            for (String known : VOICES) {
+                if (known.equalsIgnoreCase(v)) {
+                    return known;
+                }
+            }
+            return "Kore";
         }
 
         @Override
@@ -378,11 +437,26 @@ interface Live {
             }
         }
 
+        /**
+         * An ordinary turn, which is how anything that is not a function
+         * result reaches this model. The id is ignored on purpose: this must
+         * NOT be a toolResponse, or the call it named would be finished early
+         * with a stage direction as its result.
+         */
+        @Override
+        public JSONObject interim(String id, String text) throws Exception {
+            return new JSONObject().put("clientContent", new JSONObject()
+                    .put("turns", new JSONArray().put(new JSONObject()
+                            .put("role", "user")
+                            .put("parts", new JSONArray().put(
+                                    new JSONObject().put("text", text)))))
+                    .put("turnComplete", true));
+        }
+
         @Override
         public JSONObject answer(String id, String text) throws Exception {
-            // A reply names the call it answers. Unlike GPT-Live there is no
-            // free-floating commentary channel, so an id-less answer would be
-            // dropped - better to send nothing than to believe it landed.
+            // A result names the call it completes; there is no anonymous
+            // form, so without an id there is nothing to send.
             if (id == null || id.isEmpty()) {
                 return null;
             }
@@ -401,6 +475,11 @@ interface Live {
         @Override
         public boolean acknowledgesClose() {
             return false;
+        }
+
+        @Override
+        public boolean interimDuringDelegation() {
+            return false;                  // it cancels the call - see the interface
         }
     }
 }

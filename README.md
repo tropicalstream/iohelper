@@ -849,7 +849,36 @@ the phone answers in words. Both therefore arrive at `TalkService` as "the model
 wants the phone to answer this", and `AssistantService.respond` - the same
 phrase patterns, the same tools, the same cards - serves both mouths.
 
-Three things bite if you assume Gemini is OpenAI with different spelling:
+Four of these were found by CONNECTING, not by reading the docs, and each one
+looked like a different bug from the outside:
+
+- **Binary frames were being dropped on the floor.** `Ws.deliver()` handed the
+  listener opcode 1 and silently ignored opcode 2. Gemini sends its JSON as
+  BINARY, so the socket connected, stayed open, and nothing ever arrived - the
+  session timed out waiting for a reply it had already been sent. Both
+  protocols here are JSON over WebSocket, so the opcode is a framing detail:
+  either is decoded as UTF-8 now.
+- **A voice name from the wrong backend kills the session outright.** Not a
+  warning, not a fallback: `1007 No matching speaker voice found for name:
+  willow` and the socket closes mid-handshake. So Gemini's voices are
+  ALLOW-LISTED and anything unrecognised falls back to Kore, rather than
+  blocking the handful of names the other backend happens to use today.
+- **An interim message during a function call CANCELS it.** The "still looking
+  that up" nudges are there so a slow backend does not leave the wearer in
+  silence, and GPT-Live is happy to be prodded. Gemini reads an ordinary turn
+  arriving mid-call as the user changing the subject and replies with
+  `toolCallCancellation`, abandoning the request being chased - the answer then
+  only reached the wearer through `deliver()`'s fallback. The nudges are now
+  gated on `interimDuringDelegation()`, and Gemini acknowledges on its own
+  anyway.
+- **A completing reply and an aside are the same thing on one backend and
+  opposites on the other.** GPT-Live appends commentary as often as it likes;
+  a Gemini `toolResponse` ENDS the call, so sending a stage direction through
+  it would finish the request with that sentence as its result. Hence
+  `interim()` beside `answer()`.
+
+Three more come straight from the API and would each have looked like a
+different fault:
 
 - **Transcription is off unless asked for.** The cards are built from the
   transcripts, not from the audio, so without `inputAudioTranscription` and

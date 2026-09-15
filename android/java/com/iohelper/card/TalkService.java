@@ -456,7 +456,7 @@ public class TalkService extends Service implements Live.Sink {
             }
         }, "talk-sonos-warm").start();
         // Hearing the voice is the proof the whole path is up.
-        commentary(null, "Say only: Ready.");
+        commentary(null, "Say only: Ready.", false);
         // The clock on the wearer's money: silence for this long hangs up.
         long idleMs = Math.max(30, Prefs.integer(this, Prefs.TALK_IDLE, DEFAULT_IDLE_S)) * 1000L;
         while (running) {
@@ -953,12 +953,19 @@ public class TalkService extends Service implements Live.Sink {
         // until it was prodded. These only fire while the model has stayed
         // silent since the question, so a normal "one sec" suppresses them.
         Thread patience = new Thread(() -> {
+            // Only where prodding is safe. On Gemini an interim turn during an
+            // outstanding call cancels it, so the cure would be worse than the
+            // silence - and it acknowledges on its own anyway.
+            if (!proto.interimDuringDelegation()) {
+                return;
+            }
             if (!spoke(began, 3500) && running) {
                 Log.i(TAG, "  silent since the question - asking it to acknowledge");
-                commentary(id, "Tell the user you are still looking that up.");
+                commentary(id, "Tell the user you are still looking that up.", false);
                 if (!spoke(System.currentTimeMillis(), 16000) && running) {
                     Log.i(TAG, "  still silent - asking again");
-                    commentary(id, "Tell the user it is taking a little longer than usual.");
+                    commentary(id, "Tell the user it is taking a little longer than usual.",
+                            false);
                 }
             }
         }, "talk-patience");
@@ -1086,12 +1093,20 @@ public class TalkService extends Service implements Live.Sink {
         return out.length() > 600 ? out.substring(0, 600) : out;
     }
 
-    private boolean commentary(String delegationId, String content) {
+    /**
+     * Say something to the model.
+     *
+     * @param finalReply true only for the answer that COMPLETES the
+     *                   delegation. Everything else - the greeting, the
+     *                   "still looking" nudges, the repeat when the model
+     *                   stayed silent - is interim, because on Gemini a
+     *                   completing reply can be sent once and ends the call.
+     */
+    private boolean commentary(String delegationId, String content, boolean finalReply) {
         try {
-            JSONObject o = proto.answer(delegationId, content);
+            JSONObject o = finalReply ? proto.answer(delegationId, content)
+                                      : proto.interim(delegationId, content);
             if (o == null) {
-                // Gemini drops an answer that names no call, so there is
-                // nothing useful to send and saying otherwise would be a lie.
                 Log.i(TAG, "no reply channel for this delegation");
                 return false;
             }
@@ -1121,18 +1136,18 @@ public class TalkService extends Service implements Live.Sink {
             content = "Done.";
         }
         long sent = System.currentTimeMillis();
-        commentary(delegationId, content);
+        commentary(delegationId, content, true);          // this one ends the call
         if (spoke(sent, 5000)) {
             return;
         }
         Log.i(TAG, "no speech after the delegation reply - repeating on the session channel");
         sent = System.currentTimeMillis();
-        commentary(null, content);
+        commentary(null, content, false);
         if (spoke(sent, 5000)) {
             return;
         }
         Log.w(TAG, "still silent - nudging once more");
-        commentary(null, "Say this to the user now: " + content);
+        commentary(null, "Say this to the user now: " + content, false);
     }
 
     /**
