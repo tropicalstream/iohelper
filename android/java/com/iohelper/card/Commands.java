@@ -1607,7 +1607,7 @@ public final class Commands {
     public static String run(Context ctx, Cmd cmd) {
         String out = run0(ctx, cmd);
         if (out != null && (Media.playing(out)
-                || (out.startsWith("◉") && !out.contains("?")))) {
+                || (out.startsWith(Radio.GLYPH) && !out.contains("?")))) {
             Proactive.playbackStarted();
         }
         return out;
@@ -1728,7 +1728,7 @@ public final class Commands {
                         played = Media.youtube(ctx, cmd.text, cmd.ytSort, cmd.ytChannel,
                                 cmd.ytSince);
                     } else if (podcastApp(cmd.due)) {
-                        played = Media.pocketcasts(ctx, cmd.text);
+                        played = Media.podcast(ctx, cmd.text);
                     } else {
                         played = Media.spotify(ctx, cmd.text, cmd.contentType, cmd.shuffle);
                     }
@@ -1757,7 +1757,7 @@ public final class Commands {
                     if (Radio.vague(cmd.text)) {
                         // "play the radio" names nothing. Ask, rather than pick
                         // a station at random and present it as the answer.
-                        return "◉ Which station? Say a name or a genre.";
+                        return Radio.GLYPH + " Which station? Say a name or a genre.";
                     }
                     String[] st = Radio.find(ctx, cmd.text);
                     if (st == null) {

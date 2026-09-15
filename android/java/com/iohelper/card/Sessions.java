@@ -34,6 +34,8 @@ public final class Sessions {
 
     /** Pocket Casts. Its session advertises PLAY_FROM_SEARCH, which is the point. */
     static final String POCKETCASTS = "au.com.shiftyjelly.pocketcasts";
+    /** Spotify, which carries podcasts too and is the other podcast route. */
+    static final String SPOTIFY = "com.spotify.music";
 
     private Sessions() {
     }
@@ -60,6 +62,31 @@ public final class Sessions {
         } catch (Exception e) {
             Log.i(TAG, "getActiveSessions failed: " + e);
             return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Whether the notification grant getActiveSessions() needs is still there.
+     *
+     * Worth asking before blaming an app. Without the grant every lookup here
+     * returns nothing, so "Pocket Casts holds no session" and "iohelper is not
+     * allowed to look" are indistinguishable from the inside - and the card
+     * said the former for both. Reinstalling the app has dropped this grant
+     * before, so it is a real state, not a theoretical one.
+     */
+    static boolean accessible(Context ctx) {
+        try {
+            MediaSessionManager m = (MediaSessionManager)
+                    ctx.getSystemService(Context.MEDIA_SESSION_SERVICE);
+            if (m == null) {
+                return false;
+            }
+            m.getActiveSessions(new ComponentName(ctx, NavListener.class));
+            return true;
+        } catch (SecurityException e) {
+            return false;
+        } catch (Exception e) {
+            return true;              // some other failure; not a permission one
         }
     }
 

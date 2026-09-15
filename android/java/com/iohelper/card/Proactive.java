@@ -187,8 +187,20 @@ public final class Proactive {
                         boolean safe = ("media".equals(Cards.lastKind)
                                 || Cards.msSinceLastCard() > 15_000)
                                 && !announcedRecently(key);
+                        // WHY this card appeared, recorded before it is posted.
+                        // An unprompted card that looks stale is otherwise
+                        // impossible to attribute after the fact: by the time
+                        // anyone looks, the session has moved on and the log
+                        // says only that something was pushed. The previous key
+                        // is the whole question - whether a genuinely new track
+                        // started, or a session the wearer had finished with
+                        // came back and looked new.
+                        android.util.Log.i("iohelperAssist", "track card: pkg=" + t.pkg
+                                + " safe=" + safe + " was=\"" + lastTrackKey
+                                + "\" now=\"" + key + "\"");
                         if (safe) {
-                            Cards.post(ctx, Cards.title(ctx), "♪ " + t.label(), "media");
+                            Cards.post(ctx, Cards.title(ctx),
+                                    Media.glyphFor(t.pkg) + " " + t.label(), "media");
                             rememberAnnounced(key);
                             pushed = "track: " + t.label();
                         }

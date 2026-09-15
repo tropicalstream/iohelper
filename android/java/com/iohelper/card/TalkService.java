@@ -964,7 +964,7 @@ public class TalkService extends Service {
             // open session is a microphone left on and a meter still running.
             // Let the model finish saying what started, then hang up.
             boolean started = Media.playing(line)
-                    || (line.startsWith("◉") && !line.contains("?"));
+                    || (line.startsWith(Radio.GLYPH) && !line.contains("?"));
             if (started && Prefs.bool(this, Prefs.TALK_HANGUP_MEDIA, true)) {
                 waitForSpeechToEnd(12000);
                 Log.i(TAG, "media started - hanging up");

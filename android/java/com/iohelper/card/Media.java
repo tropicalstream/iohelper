@@ -60,10 +60,28 @@ public final class Media {
      * the rest).
      */
     static final String YT_GLYPH = "▷";
+    /**
+     * The mark on a podcast line. Pocket Casts shared the filled "▶" with
+     * Spotify and Sonos at first, which made an episode indistinguishable from
+     * a song on a display that shows one line; this says at a glance which it
+     * is. Chosen the same way as the others - candidates put on the lens and
+     * looked at, since the font draws what it lacks as an empty box, and a
+     * rectangular glyph could never be told apart from a missing one.
+     */
+    static final String PC_GLYPH = "◈";
 
-    /** Whether a line reports something actually playing, whatever the source. */
+    /**
+     * Whether a line reports something actually playing, whatever the source.
+     *
+     * Every playback glyph has to be listed here, not just the music one. This
+     * is what tells the live voice session that media has started and it may
+     * hang up; a glyph missing from it means the session stays open with the
+     * microphone live and the meter running, which is why PC_GLYPH went in at
+     * the same moment the podcast lines started using it.
+     */
     static boolean playing(String line) {
-        return line != null && (line.startsWith("▶") || line.startsWith(YT_GLYPH));
+        return line != null && (line.startsWith("▶") || line.startsWith(YT_GLYPH)
+                || line.startsWith(PC_GLYPH));
     }
 
     private static volatile String spotifyToken;
@@ -1247,6 +1265,35 @@ public final class Media {
      * the Spotify device directly); a YouTube watch URL autoplays on its own.
      */
     /**
+     * Play a podcast through whichever app the wearer keeps their shows in.
+     *
+     * Spotify carries podcasts too, and which app is "the podcast app" is not
+     * something that can be inferred - it depends where the subscriptions
+     * actually are. So it is a setting, and both routes end at the same glyph:
+     * an episode is an episode whoever serves it, and the lens should not make
+     * the wearer remember which backend answered.
+     */
+    static String podcast(Context ctx, String query) {
+        if (Prefs.bool(ctx, Prefs.PODCASTS_VIA_SPOTIFY, false)) {
+            // type=show is Spotify's podcast search; playing a show as a
+            // CONTEXT starts its latest episode, which is what "play X" means
+            // for a podcast. Verified against the API: the show URI is
+            // accepted and the newest episode starts.
+            String out = spotify(ctx, query, "show", false);
+            if (!out.startsWith("▶ ")) {
+                return out;                       // a miss, or no Spotify keys
+            }
+            // Spotify's SEARCH only knows the show's name, so the card said
+            // "The Daily" where the Pocket Casts path says which episode -
+            // the same request answered two different ways. The session knows
+            // the episode once it starts, so wait for it and say that.
+            String ep = waitForEpisode(ctx, Sessions.SPOTIFY, 8000);
+            return PC_GLYPH + " " + (ep == null ? out.substring(2) : ep);
+        }
+        return pocketcasts(ctx, query);
+    }
+
+    /**
      * Start a podcast by name on Pocket Casts.
      *
      * Its session advertises ACTION_PLAY_FROM_SEARCH, which is the mechanism
@@ -1270,9 +1317,9 @@ public final class Media {
                 return "♪ Pocket Casts isn't running - say what to play.";
             }
             c.getTransportControls().play();
-            String what = waitForPodcast(ctx, 6000);
+            String what = waitForEpisode(ctx, Sessions.POCKETCASTS, 6000);
             return what == null ? "♪ Asked Pocket Casts to resume."
-                    : "▶ " + what;
+                    : PC_GLYPH + " " + what;
         }
         if (Sessions.find(ctx, Sessions.POCKETCASTS) == null) {
             try {
@@ -1288,24 +1335,52 @@ public final class Media {
             }
         }
         if (!Sessions.playFromSearch(ctx, Sessions.POCKETCASTS, q)) {
-            return "♪ Pocket Casts wouldn't take a search for " + q + ".";
+            // Distinguish "the app said no" from "iohelper is not allowed to
+            // ask". Both look identical from here - every lookup returns
+            // nothing - and blaming Pocket Casts for a revoked permission
+            // sends the wearer to debug the wrong thing.
+            return Sessions.accessible(ctx)
+                    ? "♪ Pocket Casts wouldn't take a search for " + q + "."
+                    : "♪ Turn on notification access for iohelper to control Pocket Casts.";
         }
-        String what = waitForPodcast(ctx, 12000);
+        String what = waitForEpisode(ctx, Sessions.POCKETCASTS, 12000);
         if (what == null) {
             // Its search is over SUBSCRIBED shows; an unsubscribed one is a
             // miss, not a fault, and saying which is more use than "failed".
             return "♪ Nothing in your Pocket Casts subscriptions for " + q + ".";
         }
-        return "▶ " + what;
+        return PC_GLYPH + " " + what;
     }
 
-    /** Wait for Pocket Casts to actually start, and say what it started. */
-    private static String waitForPodcast(Context ctx, long budgetMs) {
+    /**
+     * The mark for an UNPROMPTED now-playing card, by whichever app is playing.
+     *
+     * Deliberately NOT used by status(). "What's playing" must not begin with a
+     * playback glyph, because playing() reads those as "media has just
+     * started" and the live voice session hangs up on the strength of it -
+     * asking a question would end the conversation. Answering about playback
+     * is not starting playback, and status() keeps its own ♪ / ⏸ pair.
+     */
+    static String glyphFor(String pkg) {
+        if (Sessions.POCKETCASTS.equals(pkg)) {
+            return PC_GLYPH;
+        }
+        if (YT_PKG.equals(pkg)) {
+            return YT_GLYPH;
+        }
+        return "♪";
+    }
+
+    /** Wait for an app to actually start, and say which episode it started. */
+    private static String waitForEpisode(Context ctx, String pkg, long budgetMs) {
         long end = System.currentTimeMillis() + budgetMs;
         while (System.currentTimeMillis() < end) {
-            if (Sessions.isPlaying(ctx, Sessions.POCKETCASTS)) {
-                String what = Sessions.nowPlaying(ctx, Sessions.POCKETCASTS);
-                return what == null ? "Playing on Pocket Casts" : what;
+            if (Sessions.isPlaying(ctx, pkg)) {
+                // PLAYING but nameless is still playing. Returning null here
+                // would make the caller report "nothing found" over audio the
+                // wearer can hear, which is the worst of both answers.
+                String what = Sessions.nowPlaying(ctx, pkg);
+                return what == null ? "Playing" : what;
             }
             pause(600);
         }

@@ -156,17 +156,18 @@ final class Tools {
                     + "about X' -> youtube_sort=popular; 'something new about X this "
                     + "week' -> youtube_since=week. YouTube watch history and the "
                     + "subscriptions feed are NOT available - say so if asked. "
-                    + "PODCASTS: service=pocketcasts. It searches the shows the user "
-                    + "SUBSCRIBES to and matches the SHOW name, not an episode title, so "
-                    + "pass the show ('all twit') rather than the episode ('tech news "
-                    + "weekly 454'); it cannot browse the wider podcast directory, and a "
-                    + "show that is not subscribed comes back as not found. NOT FOR "
-                    + "RADIO: a station or call sign like KPFA, WNYC or KEXP belongs to "
-                    + "play_radio - sent here it finds an unrelated song.", true,
+                    + "PODCASTS: service=podcast. This goes to whichever podcast app "
+                    + "the user has chosen in settings - Pocket Casts by default, or "
+                    + "Spotify. Pass the SHOW's name ('all twit'), not an episode title "
+                    + "('tech news weekly 454'), and note that on Pocket Casts only shows "
+                    + "the user SUBSCRIBES to can be found, so an unsubscribed one comes "
+                    + "back as not found. NOT FOR RADIO: a station or call sign like "
+                    + "KPFA, WNYC or KEXP belongs to play_radio - sent here it finds an "
+                    + "unrelated song.", true,
                     params(new JSONObject()
                             .put("query", prop("string", "What to play, as the user said it"))
                             .put("service", choice("Where to find it",
-                                    "spotify", "youtube", "pocketcasts"))
+                                    "spotify", "youtube", "podcast"))
                             .put("kind", choice("What the query names", "track", "album", "playlist"))
                             .put("shuffle", prop("boolean", "Shuffle the album or playlist"))
                             .put("room", prop("string",
@@ -423,7 +424,11 @@ final class Tools {
                         ? new Commands.Cmd("sonos.play", 0, q, room)
                         : new Commands.Cmd("media.play", 0, q,
                                 "youtube".equals(service) ? "youtube"
-                                        : "pocketcasts".equals(service) ? "pocketcasts"
+                                        // "pocketcasts" still accepted: it was the
+                                        // enum value before the app became a choice,
+                                        // and a model may have it in context.
+                                        : "podcast".equals(service)
+                                          || "pocketcasts".equals(service) ? "podcast"
                                         : "spotify".equals(service) ? "spotify" : null);
                 c.contentType = "album".equals(kind) ? "album"
                         : "playlist".equals(kind) ? "playlist" : null;

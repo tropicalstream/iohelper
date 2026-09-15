@@ -2,6 +2,8 @@ package com.iohelper.card;
 import android.content.Context;
 /** Desktop stub: the probe tests CLASSIFICATION only, never streaming. */
 public final class Radio {
+    /** Mirrors the real constant: Commands tests answer lines against it. */
+    public static final String GLYPH = "≈";
     public static String[] find(Context c, String q) { return null; }
     public static String[] callSign(Context c, String w) { return null; }
     public static boolean vague(String q) { return false; }

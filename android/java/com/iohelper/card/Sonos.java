@@ -744,7 +744,7 @@ public final class Sonos {
             }
             av(z, "Play", "<Speed>1</Speed>");
             Prefs.put(ctx, Prefs.SONOS_LAST, z.room);
-            return "◉ " + label + " (" + z.room + ")";
+            return Radio.GLYPH + " " + label + " (" + z.room + ")";
         } catch (Exception e) {
             return offline(e, z);
         }

@@ -827,6 +827,45 @@ Denying the permission is safe: the foreground-service location type is added
 only when the permission is actually granted, so the assistant still starts and
 simply falls back to the configured city.
 
+## Two things playing at once (`Radio`, audio focus)
+
+Starting a podcast while a station was streaming left BOTH audible. The radio
+player asked the system for audio focus and passed a **null** listener - which
+requests focus while declining to be told when it is lost. Nothing ever stopped
+the stream, so whatever started next played over the top of it. Asking for
+focus and ignoring the answer is worse than never asking, because the system
+then believes the request was honoured.
+
+The listener now stops the stream on a permanent loss - outright, not paused,
+since live radio has no position to return to and a resumed stream comes back
+into a stale buffer - pauses on a transient one, and ducks when asked to duck.
+`stopPhone()` also hands focus BACK; holding it afterwards leaves the system
+believing this app is still playing, which is how an app that ducked for you
+never comes back up. The stop runs off the main thread: focus callbacks arrive
+there and `MediaPlayer.reset()` on a live network stream can block long enough
+to be an ANR.
+
+## Glyphs are load-bearing, so they are constants
+
+Each backend has its own mark, so one line on the lens says what kind of thing
+is playing: `▶` music, `▷` a video, `◈` a podcast, `≈` a station. All four were
+chosen by putting candidates on the glasses and looking, which is the only test
+that means anything - the font draws a character it lacks as an empty box, so a
+rectangular glyph could never be told apart from a missing one. Measured this
+way, `▶ ▷ ◈ ≈` render and `► ▸` do not, though they are neighbours in the same
+Unicode block.
+
+They are constants (`Radio.GLYPH`, `Media.PC_GLYPH`, `Media.YT_GLYPH`) because
+they are read as well as written: `Media.playing()` and the live-session
+hang-up decide "media has started" by testing what an answer line STARTS with.
+A glyph changed at the six sites that produce it, but not at the two that test
+it, would leave the voice session open with the microphone live and the meter
+running - and nothing on screen to say so.
+
+The one thing `status()` must NOT do is use a playback glyph: "what's playing"
+answers a question, it does not start anything, so it keeps its own `♪` / `⏸`.
+Give it `◈` and asking what is on would hang up the conversation.
+
 ## A bare call sign is a station, not a song (`Radio.callSign`)
 
 "play kpfa" carries none of the words the RADIO pattern needs - no "radio",

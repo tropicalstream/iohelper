@@ -47,6 +47,21 @@ public final class Radio {
     private static final String UA = "iohelper/1.0 (+RayNeo iO glasses assistant)";
     private static final int TIMEOUT_MS = 12000;
 
+    /**
+     * The mark on a radio line, chosen by putting candidates on the lens and
+     * looking - the only test that means anything, since the display draws a
+     * character its font lacks as an empty box.
+     *
+     * A CONSTANT rather than a literal because the glyph is load-bearing:
+     * Commands and TalkService both decide "radio has started, so the live
+     * voice session can hang up" by testing what the answer line STARTS with.
+     * When this was a "◉" typed out at six separate sites, changing it would
+     * have left those two testing for a character nothing produced any more -
+     * the session would have stayed open, microphone live and metered, with
+     * nothing to show it. One name, one place to change it.
+     */
+    public static final String GLYPH = "≈";
+
     private Radio() {
     }
 
@@ -288,6 +303,67 @@ public final class Radio {
 
     private static MediaPlayer player;
     private static volatile String nowPlaying;
+    /** Kept so stopPhone() can hand audio focus back; it takes no Context. */
+    private static volatile Context appCtx;
+
+    /**
+     * Yield when another app takes the audio.
+     *
+     * The focus request used to pass a NULL listener, which asks the system
+     * for focus while declining to be told when it is lost. Nothing ever
+     * stopped this player, so starting a podcast - or Spotify, or a video -
+     * left the station streaming UNDERNEATH it, both audible at once. Asking
+     * for focus and then ignoring the answer is worse than never asking.
+     *
+     * A permanent loss stops the stream outright rather than pausing it: this
+     * is LIVE radio, so there is no position to come back to, and a paused
+     * stream resumes into a stale buffer. A transient one (a navigation prompt,
+     * a call) pauses and resumes, and a duckable one just drops the volume.
+     */
+    private static final AudioManager.OnAudioFocusChangeListener FOCUS =
+            new AudioManager.OnAudioFocusChangeListener() {
+                @Override
+                public void onAudioFocusChange(int change) {
+                    MediaPlayer p = player;
+                    if (p == null) {
+                        return;
+                    }
+                    try {
+                        switch (change) {
+                            case AudioManager.AUDIOFOCUS_LOSS:
+                                Log.i(TAG, "audio focus lost - stopping " + nowPlaying);
+                                // OFF THE MAIN THREAD. A focus callback arrives
+                                // there, and reset()/release() on a live network
+                                // stream can block long enough to be an ANR -
+                                // the stop is not urgent to the millisecond.
+                                new Thread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        stopPhone();
+                                    }
+                                }, "radio-stop").start();
+                                break;
+                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                                p.pause();
+                                break;
+                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                                p.setVolume(0.2f, 0.2f);
+                                break;
+                            case AudioManager.AUDIOFOCUS_GAIN:
+                                p.setVolume(1f, 1f);
+                                if (!p.isPlaying()) {
+                                    p.start();
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                    } catch (Exception e) {
+                        // A player torn down between the check and the call.
+                        Log.w(TAG, "focus change " + change + ": " + e);
+                    }
+                }
+            };
 
     /** What is streaming on the PHONE right now, or null. */
     public static String current() {
@@ -317,7 +393,7 @@ public final class Radio {
                 public void onPrepared(MediaPlayer m) {
                     AudioManager am = app.getSystemService(AudioManager.class);
                     if (am != null) {
-                        am.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
+                        am.requestAudioFocus(FOCUS, AudioManager.STREAM_MUSIC,
                                 AudioManager.AUDIOFOCUS_GAIN);
                     }
                     m.start();
@@ -330,7 +406,7 @@ public final class Radio {
                     // Correct the card rather than leave "playing" standing on
                     // the glasses for a stream that never opened.
                     Cards.post(app, Cards.title(app),
-                            "◉ " + Cards.sanitize(nowPlaying == null ? "Station" : nowPlaying)
+                            GLYPH + " " + Cards.sanitize(nowPlaying == null ? "Station" : nowPlaying)
                             + " would not play.", "answer");
                     stopPhone();
                     return true;
@@ -338,8 +414,9 @@ public final class Radio {
             });
             player = mp;
             nowPlaying = name;
+            appCtx = app;
             mp.prepareAsync();
-            return "◉ " + name;
+            return GLYPH + " " + name;
         } catch (Exception e) {
             stopPhone();
             return "Could not open that stream (" + e + ")";
@@ -357,6 +434,18 @@ public final class Radio {
                 // A player torn down mid-prepare throws; nothing to salvage.
             }
             player = null;
+        }
+        // Hand focus BACK. Holding it after the stream is gone leaves the
+        // system believing this app is still playing, which is how a paused
+        // app fails to resume when the thing that interrupted it has finished.
+        try {
+            Context c = appCtx;
+            AudioManager am = c == null ? null : c.getSystemService(AudioManager.class);
+            if (am != null) {
+                am.abandonAudioFocus(FOCUS);
+            }
+        } catch (Exception ignored) {
+            // Nothing to salvage; the stream is already down.
         }
         nowPlaying = null;
         return was;

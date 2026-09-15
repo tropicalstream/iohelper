@@ -117,6 +117,20 @@ public final class Prefs {
     /** Show a card when the playing track changes. */
     public static final String MEDIA_CARDS = "media.show_track_changes";
     /**
+     * Play podcasts through Spotify instead of Pocket Casts.
+     *
+     * Both carry podcasts, and which one is "the podcast app" depends on where
+     * the wearer's subscriptions actually live - there is nothing to infer.
+     * Pocket Casts is the default only because it is a dedicated podcast app;
+     * turning this on sends "play X on podcasts" to Spotify instead.
+     *
+     * A BOOLEAN, not a "spotify"/"pocketcasts" string: the settings switch
+     * writes with putBoolean, and this file's own history is that a String
+     * stored under a key later read with getBoolean throws ClassCastException
+     * on the very next read. Two choices do not need a name each.
+     */
+    public static final String PODCASTS_VIA_SPOTIFY = "media.podcasts_via_spotify";
+    /**
      * Words that ALWAYS mean a radio station, comma-separated - call signs
      * mostly ("kpfa, kqed, wnyc").
      *

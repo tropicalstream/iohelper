@@ -196,6 +196,13 @@ public class MainActivity extends Activity {
                 + "Without a YouTube key, \"play X on YouTube\" opens a search rather "
                 + "than starting the top result."));
 
+        toggle(keys, "Use Spotify for podcasts (instead of Pocket Casts)",
+                Prefs.PODCASTS_VIA_SPOTIFY, false);
+        keys.addView(hint("Both carry podcasts. This decides where \"play X on "
+                + "podcasts\" goes - set it to wherever your subscriptions are. "
+                + "Pocket Casts searches only shows you subscribe to; Spotify "
+                + "searches its whole catalogue but needs the keys above."));
+
         final EditText callSigns = field(keys, "Radio call signs (comma-separated)",
                 Prefs.str(this, Prefs.RADIO_CALLSIGNS, ""), false);
         keys.addView(hint("Words here ALWAYS mean a radio station, so \"play kpfa\" "
