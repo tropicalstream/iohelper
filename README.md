@@ -827,6 +827,44 @@ Denying the permission is safe: the foreground-service location type is added
 only when the permission is actually granted, so the assistant still starts and
 simply falls back to the configured city.
 
+## A bare call sign is a station, not a song (`Radio.callSign`)
+
+"play kpfa" carries none of the words the RADIO pattern needs - no "radio",
+no "station", no "FM" - so it fell through to the music path, where Spotify
+fuzzy-matched it and played *Kodak Black*. Call signs are how people ask for
+the stations they actually listen to, so the shape has to be recognised
+without the noun, and recognised conservatively: a four-letter word is also a
+band.
+
+Measured against the directory, two conditions separate them cleanly - a real
+call sign LEADS its station's name, and North America is the only place whose
+call signs are shaped like this:
+
+| asked | top hit | country | |
+|---|---|---|---|
+| `kpfa` | **KPFA** | US | station |
+| `kexp` | **KEXP** 90.3 Seattle, WA | US | station |
+| `wnyc` | **WNYC** 93.9 FM | US | station |
+| `kiss` | Kiss FM 106.5 | UA | music |
+| `work` | Radio 105 Net**work** | IT | music |
+| `wolf` | The WOLF - New Country | DE | music |
+
+An ordinary word either turns up in the middle of a name or is not North
+American, and falls through to music exactly as before - so the cost of a miss
+is the behaviour that already existed.
+
+Where the inference *cannot* honestly decide, it does not: `kiss` leads a real
+station's name and is also a band, and no amount of cleverness settles that.
+`radio.call_signs` is the answer - a list of words that ALWAYS mean a station,
+checked before the inference runs. Empty by default, set on-device, so no
+personal station list ships in the code. Enumeration for the conflicts,
+inference for the rest.
+
+This lives in the `media.play` RUNNER rather than in `parse()`, which has no
+`Context` to reach the directory with. That placement also fixes the tool
+path for free: the model picks no service for "play kpfa" either, so it was
+going the same wrong way.
+
 ## Controlling a podcast app (`Sessions`, `Media.pocketcasts`)
 
 Pocket Casts is driven through the real `MediaSessionManager` rather than by

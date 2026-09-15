@@ -196,6 +196,13 @@ public class MainActivity extends Activity {
                 + "Without a YouTube key, \"play X on YouTube\" opens a search rather "
                 + "than starting the top result."));
 
+        final EditText callSigns = field(keys, "Radio call signs (comma-separated)",
+                Prefs.str(this, Prefs.RADIO_CALLSIGNS, ""), false);
+        keys.addView(hint("Words here ALWAYS mean a radio station, so \"play kpfa\" "
+                + "tunes in instead of finding a song that sounds like it. Unambiguous "
+                + "call signs are recognised without this; list the ones that clash "
+                + "with a band or a song, where guessing would be a coin flip."));
+
         // The notes the assistant holds. They live in its own store - not in
         // the phone's Notes app, which no third-party app may write to - so
         // until now the only way to see one was to ask for it out loud, and a
@@ -271,6 +278,8 @@ public class MainActivity extends Activity {
                 Prefs.put(MainActivity.this, Prefs.SPOTIFY_ID, spotifyId.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SPOTIFY_SECRET, spotifySecret.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.YOUTUBE_KEY, youtubeKey.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.RADIO_CALLSIGNS,
+                        callSigns.getText().toString().trim());
                 Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
                 refresh();
             }

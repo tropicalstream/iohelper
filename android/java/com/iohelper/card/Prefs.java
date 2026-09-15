@@ -116,6 +116,22 @@ public final class Prefs {
     public static final String YOUTUBE_KEY = "media.youtube_api_key";
     /** Show a card when the playing track changes. */
     public static final String MEDIA_CARDS = "media.show_track_changes";
+    /**
+     * Words that ALWAYS mean a radio station, comma-separated - call signs
+     * mostly ("kpfa, kqed, wnyc").
+     *
+     * A bare "play kpfa" has none of the words that mark a radio request, so it
+     * used to reach the music path and Spotify fuzzy-matched it to an unrelated
+     * song. Radio.callSign can usually tell a call sign from a word on its own,
+     * but it is an INFERENCE, and it deliberately refuses anything ambiguous -
+     * "kiss" leads a real station's name and is also a band. This list is the
+     * answer for those: a word named here is a station, decided rather than
+     * guessed, and it is checked before the inference runs.
+     *
+     * DEFAULT EMPTY, and set on-device: no personal station list ships in the
+     * code. The inference still covers the unambiguous call signs without it.
+     */
+    public static final String RADIO_CALLSIGNS = "radio.call_signs";
     /** The Sonos room last controlled - what a bare "on the Sonos" means. */
     public static final String SONOS_LAST = "sonos.last_room";
     /** Cached speakers, so one failed probe does not mean "no Sonos here". */

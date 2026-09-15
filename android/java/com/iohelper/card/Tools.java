@@ -155,10 +155,18 @@ final class Tools {
                     + "youtube_channel + youtube_sort=newest; 'the most popular video "
                     + "about X' -> youtube_sort=popular; 'something new about X this "
                     + "week' -> youtube_since=week. YouTube watch history and the "
-                    + "subscriptions feed are NOT available - say so if asked.", true,
+                    + "subscriptions feed are NOT available - say so if asked. "
+                    + "PODCASTS: service=pocketcasts. It searches the shows the user "
+                    + "SUBSCRIBES to and matches the SHOW name, not an episode title, so "
+                    + "pass the show ('all twit') rather than the episode ('tech news "
+                    + "weekly 454'); it cannot browse the wider podcast directory, and a "
+                    + "show that is not subscribed comes back as not found. NOT FOR "
+                    + "RADIO: a station or call sign like KPFA, WNYC or KEXP belongs to "
+                    + "play_radio - sent here it finds an unrelated song.", true,
                     params(new JSONObject()
                             .put("query", prop("string", "What to play, as the user said it"))
-                            .put("service", choice("Where to find it", "spotify", "youtube"))
+                            .put("service", choice("Where to find it",
+                                    "spotify", "youtube", "pocketcasts"))
                             .put("kind", choice("What the query names", "track", "album", "playlist"))
                             .put("shuffle", prop("boolean", "Shuffle the album or playlist"))
                             .put("room", prop("string",
@@ -170,13 +178,25 @@ final class Tools {
                             .put("youtube_since", choice("YouTube only: only videos this recent",
                                     "week", "month", "year")),
                             "query")));
-            t.add(new Spec("play_radio", "Play an internet radio station by name or genre.",
+            t.add(new Spec("play_radio",
+                    "Play a live internet radio station, searched by name, call sign or "
+                    + "genre across a worldwide directory. USE THIS FOR CALL SIGNS - "
+                    + "KPFA, WNYC, KEXP, KQED and the like are radio stations, not songs "
+                    + "or podcasts, and play_music would find an unrelated track. Also "
+                    + "for 'the news', a genre ('jazz radio') or a named broadcaster "
+                    + "('BBC World Service'). This is LIVE radio: there is nothing to "
+                    + "search within it and no episodes to pick from.",
                     true, params(new JSONObject()
-                            .put("station", prop("string", "Station name or genre"))
+                            .put("station", prop("string",
+                                    "Station name, call sign or genre"))
                             .put("room", prop("string",
                                     "A Sonos room name to play there; omit for the phone")),
                             "station")));
-            t.add(new Spec("media_control", "Control whatever is playing.", true,
+            t.add(new Spec("media_control",
+                    "Control whatever is playing - music, a podcast or radio. On a "
+                    + "podcast, next/previous are the app's forward/back jumps rather "
+                    + "than a change of episode, because a podcast has no next track.",
+                    true,
                     params(new JSONObject()
                             .put("action", choice("The control", "play", "pause", "stop",
                                     "next", "previous", "louder", "quieter"))
@@ -403,6 +423,7 @@ final class Tools {
                         ? new Commands.Cmd("sonos.play", 0, q, room)
                         : new Commands.Cmd("media.play", 0, q,
                                 "youtube".equals(service) ? "youtube"
+                                        : "pocketcasts".equals(service) ? "pocketcasts"
                                         : "spotify".equals(service) ? "spotify" : null);
                 c.contentType = "album".equals(kind) ? "album"
                         : "playlist".equals(kind) ? "playlist" : null;

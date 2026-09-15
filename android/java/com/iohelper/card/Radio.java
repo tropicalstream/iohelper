@@ -83,6 +83,107 @@ public final class Radio {
     }
 
     /**
+     * A BROADCAST CALL SIGN, or null if this word is not confidently one.
+     *
+     * "play kpfa" names a radio station, but it carries none of the words the
+     * RADIO pattern needs, so it fell through to the music path and Spotify
+     * fuzzy-matched it to "Kodak Black". Call signs are how people actually ask
+     * for the stations they listen to, so the shape has to be recognised
+     * without the word "radio" - and recognised CONSERVATIVELY, because a
+     * four-letter word is also a band.
+     *
+     * The rule is deliberately strict, and every part of it was measured
+     * against the directory:
+     *
+     *   kpfa -> "KPFA"                      US   accepted
+     *   kexp -> "KEXP 90.3 Seattle, WA"     US   accepted
+     *   wnyc -> "WNYC 93.9 FM"              US   accepted
+     *   kiss -> "Kiss FM 106.5"             UA   rejected, not US/CA
+     *   work -> "Radio 105 Network"         IT   rejected, no prefix match
+     *   wolf -> "The WOLF - New Country"    DE   rejected, no prefix match
+     *
+     * A real call sign leads its station's name; an ordinary word that happens
+     * to appear in one turns up in the middle. The country check is what keeps
+     * "kiss" - which DOES lead a station name - out, since North American call
+     * signs are the only ones shaped like this. Both have to hold, and the
+     * caller still falls back to music when they do not, so the cost of a miss
+     * is the behaviour that already existed.
+     */
+    public static String[] callSign(Context ctx, String word) {
+        String w = word == null ? "" : word.trim();
+        // NAMED STATIONS ARE DECIDED, NOT INFERRED. A word the wearer has
+        // listed is a station full stop, so it skips every test below - that
+        // is the whole point of the list: it is where a conflict the inference
+        // refuses to arbitrate ("kiss" is a station AND a band) gets settled by
+        // someone who knows which they meant. The ordinary directory lookup
+        // resolves it, the same one an explicit "play X radio" uses.
+        if (listed(ctx, w)) {
+            String[] hit = find(ctx, w);
+            if (hit != null) {
+                Log.i(TAG, "listed station " + w + " -> " + hit[0]);
+                return hit;
+            }
+            // Listed but not found: still not a music request. Saying nothing
+            // here would hand "kpfa" to Spotify, which is the bug this fixes.
+            Log.w(TAG, "listed station " + w + " not in the directory");
+            return null;
+        }
+        if (!w.matches("(?i)[kw][a-z]{3}")) {
+            return null;
+        }
+        String up = w.toUpperCase(Locale.US);
+        try {
+            String body = get(API + "/byname/" + enc(w)
+                    + "?limit=20&hidebroken=true&order=votes&reverse=true");
+            JSONArray arr = new JSONArray(body);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.optJSONObject(i);
+                if (o == null) {
+                    continue;
+                }
+                String name = o.optString("name", "").trim();
+                String cc = o.optString("countrycode", "").trim().toUpperCase(Locale.US);
+                if (!"US".equals(cc) && !"CA".equals(cc)) {
+                    continue;
+                }
+                String nameUp = name.toUpperCase(Locale.US);
+                // Leads the name, and is not merely the start of a longer word:
+                // "KISSING" must not pass for "KISS".
+                if (!nameUp.startsWith(up)
+                        || (nameUp.length() > up.length()
+                            && Character.isLetter(nameUp.charAt(up.length())))) {
+                    continue;
+                }
+                String stream = pickUrl(o);
+                if (stream == null) {
+                    continue;
+                }
+                Log.i(TAG, "call sign " + up + " -> " + name);
+                return new String[]{
+                    name, stream, o.optString("codec", "").trim(),
+                    String.valueOf(o.optInt("bitrate", 0)), cc,
+                };
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "callSign failed: " + e);
+        }
+        return null;
+    }
+
+    /** Whether the wearer has declared this word to be a station. */
+    private static boolean listed(Context ctx, String word) {
+        if (word.isEmpty()) {
+            return false;
+        }
+        for (String s : Prefs.list(ctx, Prefs.RADIO_CALLSIGNS, "")) {
+            if (s.equalsIgnoreCase(word)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Whether a request names no station at all - "play the radio", "put the
      * radio on". Worth catching, because the directory will cheerfully answer a
      * search for "the" with a real station, and playing it would be presenting

@@ -1690,6 +1690,22 @@ public final class Commands {
                     return Media.control(ctx, act);
                 }
                 case "media.play": {
+                    // A BARE CALL SIGN IS A STATION, NOT A SONG. "play kpfa"
+                    // carries none of the words RADIO_NOUN looks for, so it
+                    // arrived here and Spotify fuzzy-matched it to "Kodak
+                    // Black" - the failure that prompted this. Radio.callSign
+                    // only answers when the directory confirms a North American
+                    // station whose name the word LEADS, so an ordinary
+                    // four-letter word falls through to music exactly as
+                    // before. Done here rather than in parse() so the
+                    // play_music tool gets it too: the model picks no service
+                    // for "play kpfa" either, and it went the same wrong way.
+                    if (cmd.due == null && !cmd.onSpeaker) {
+                        String[] st = Radio.callSign(ctx, cmd.text);
+                        if (st != null) {
+                            return Radio.playOnPhone(ctx, st[1], st[0]);
+                        }
+                    }
                     // Descriptive resolution on the phone too (Spotify only).
                     if (!"youtube".equals(cmd.due) && !podcastApp(cmd.due)) {
                         Resolved rd = resolveDescriptive(ctx, cmd.descr, cmd.contentType, cmd.said);
