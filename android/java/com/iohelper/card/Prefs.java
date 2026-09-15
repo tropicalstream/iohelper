@@ -285,7 +285,16 @@ public final class Prefs {
         return list(c, WAKE_MANGLES, "travis,jervis,jarvise,jarvas,darvis");
     }
 
-    /** "assistant" (crown) or "alwayson" (Life Log). Crown is the working one. */
+    /**
+     * "assistant" or "alwayson" (Life Log). The assistant channel is the
+     * working one.
+     *
+     * It is NOT crown-only, which this file said for a long time: RayNeo's own
+     * wake phrase - "hey rayneo", or just "rayneo" - opens the same assistant
+     * and produces the same phone_asr_text transcript, equally reliably. So
+     * hands-free already works; it simply belongs to RayNeo's wake word rather
+     * than to the always-on channel, which delivers nothing here.
+     */
     public static String source(Context c) {
         return str(c, WAKE_SOURCE, "assistant");
     }

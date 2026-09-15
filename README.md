@@ -23,8 +23,11 @@
 > question, so the idle hang-up (`talk.idle_seconds`, 120 s by default) is what
 > stops a session left running from eating the day's quota.
 
-Press the **crown** on the glasses, ask a question, and the answer appears on
-the lens a few seconds later — no PC, no wake word, nothing to say first.
+Press the **crown** on the glasses — or just say **"hey rayneo"** — ask a
+question, and the answer appears on the lens a few seconds later, with no PC
+involved. Both triggers are RayNeo's own and work equally well, so it is
+hands-free whenever you want it to be; there is no wake word of *ours* to
+learn.
 Answers come from **OpenAI** (`gpt-5.6-luna`, about a tenth of a cent a
 question), **Groq** (free), the **latest free Gemini**, or **Claude via OAuth**
 (your Claude Code login — no API key), with **SerpApi** live data for
@@ -43,7 +46,7 @@ designed **not to interfere with RayNeo's own voice integration** — see
 
 ```
 your voice → glasses mic → RayNeo ASR → transcript (read-only from the phone's logcat)
-    → crown press is the trigger → local command | LLM (+ SerpApi + calendar)
+    → RayNeo's trigger: crown press or "hey rayneo" → local command | LLM (+ SerpApi + calendar)
         → notification on the phone → RNLink/SPP → glasses display  (render receipt confirms)
 ```
 
@@ -64,8 +67,9 @@ your voice → glasses mic → RayNeo ASR → transcript (read-only from the pho
    optional, for live data and music.
 5. In RayNeo's own app, allow this app to post notifications to the glasses,
    so cards can actually reach the lens.
-6. Wear the glasses, press the **crown**, and ask — *"what's the weather in
-   Oakland?"* The crown press is the trigger; there is no wake word to say.
+6. Wear the glasses, press the **crown** or say **"hey rayneo"**, and ask —
+   *"what's the weather in Oakland?"* Either is RayNeo's own trigger and they
+   work equally well; there is no wake word of this app's to say.
 
 > **Set it up and it says "listening" but nothing happens?** Don't start
 > changing settings — one command says which of five things is wrong. See

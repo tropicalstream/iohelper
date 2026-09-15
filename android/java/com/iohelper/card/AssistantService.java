@@ -356,7 +356,7 @@ public class AssistantService extends Service {
                 conn = LocalAdb.connect(this);
                 // -T 1 starts at "now" so a reconnect never replays old speech
                 AdbStream stream = conn.open("shell:logcat -v time -T 1");
-                status("listening - press the crown to ask");
+                status("listening - crown or \"hey rayneo\" to ask");
                 backoff = 5;
                 consecutiveFailures = 0;
                 if (outage) {                       // came back on its own
@@ -454,7 +454,10 @@ public class AssistantService extends Service {
         String trigger = Prefs.trigger(this);
         String query;
         if ("assistant".equals(Prefs.source(this))) {
-            // The crown press IS the trigger on this channel; strip the wake
+            // The TRIGGER IS RAYNEO'S OWN - a crown press, or its wake phrase
+            // ("hey rayneo" / "rayneo"), which work equally well and both
+            // arrive here as the same transcript. Either way the request has
+            // already been addressed to something, so strip the wake
             // word if it was spoken anyway.
             query = Wake.triggerHit(trigger, text) ? Wake.stripTrigger(trigger, text) : text;
         } else {
@@ -751,7 +754,7 @@ public class AssistantService extends Service {
         if (line.isEmpty()) {
             // A silent hand-off, or nothing survived sanitising (an emoji-only
             // reply); don't leave the status saying "thinking".
-            status("listening - press the crown to ask");
+            status("listening - crown or \"hey rayneo\" to ask");
             return;
         }
         if (model) {
@@ -772,7 +775,7 @@ public class AssistantService extends Service {
         } else {
             Cards.post(this, Cards.title(this), line, r.kind);
         }
-        status("listening - press the crown to ask");
+        status("listening - crown or \"hey rayneo\" to ask");
     }
 
     public static void start(Context c) {

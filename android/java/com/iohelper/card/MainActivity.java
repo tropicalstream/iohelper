@@ -140,9 +140,10 @@ public class MainActivity extends Activity {
         // NO VOICE SOURCE SECTION, and no wake word field either. Both offered
         // a choice with one working answer.
         //
-        // The wake word went first: on the channel that works the crown press
-        // IS the trigger, so configuring a word told people to say something
-        // that does nothing. The SOURCE picker has now gone the same way, and
+        // The wake word went first: on the channel that works, RayNeo's own
+        // trigger opens the assistant - a crown press, or its wake phrase
+        // ("hey rayneo" / "rayneo"), both equally reliable - so configuring a
+        // wake word of our own told people to say something that does nothing. The SOURCE picker has now gone the same way, and
         // it was worse than useless - it was a trap. "alwayson" is RayNeo's
         // hands-free channel, and onLine() is an either/or: choosing it stops
         // the crown transcript being parsed at all. So the one setting that
