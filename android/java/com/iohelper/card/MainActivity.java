@@ -137,21 +137,34 @@ public class MainActivity extends Activity {
         statusView.setLayoutParams(slp);
         root.addView(statusView);
 
-        root.addView(heading2("Voice"));
-        LinearLayout voice = card(root);
-        // NO WAKE WORD FIELD. On the channel that actually works there is
-        // nothing to say: the crown press IS the trigger. Offering a "wake word"
-        // to configure told people to say a word that does nothing, and the hint
-        // under it went further and told them where in the sentence to say it.
-        // The trigger and its known mis-hearings still live in Prefs - one said
-        // out of habit is still stripped from the question, and the alwayson
-        // gate still needs both - they are simply no longer presented as
-        // something to set while that source is broken in RayNeo's firmware.
-        picker(voice, "SOURCE", Prefs.WAKE_SOURCE, Prefs.source(this),
-                "assistant", "alwayson");
-        voice.addView(hint("assistant = crown press, no wake word - pressing the crown "
-                + "is the trigger (RayNeo answers too). alwayson = hands-free, currently "
-                + "broken in RayNeo's firmware."));
+        // NO VOICE SOURCE SECTION, and no wake word field either. Both offered
+        // a choice with one working answer.
+        //
+        // The wake word went first: on the channel that works the crown press
+        // IS the trigger, so configuring a word told people to say something
+        // that does nothing. The SOURCE picker has now gone the same way, and
+        // it was worse than useless - it was a trap. "alwayson" is RayNeo's
+        // hands-free channel, and onLine() is an either/or: choosing it stops
+        // the crown transcript being parsed at all. So the one setting that
+        // promised more listening delivered none, and silenced the channel
+        // that worked.
+        //
+        // Measured on firmware 1.0.4, in a clean 60 s window with someone
+        // speaking: zero onAlwaysOnResponse lines, zero lines carrying
+        // recognised text, and no wake or record events. RayNeo's stack starts
+        // cleanly - onGlassWake, onAudioRecordStart, opus streamed to their
+        // ASR, onStartResult success - and then publishes the transcript
+        // somewhere logcat cannot see it. One of its own lines says where:
+        // "inRealtimePage=false", their realtime transcription view.
+        //
+        // The pref is still read, and still settable from adb for anyone
+        // checking whether a later firmware fixed it:
+        //   am broadcast ... CONFIG --es k wake.source --es v alwayson
+        // Anyone already holding that value is put back on the working channel
+        // here, because with no picker there would be no way back.
+        if ("alwayson".equals(Prefs.source(this))) {
+            Prefs.put(this, Prefs.WAKE_SOURCE, "assistant");
+        }
 
         root.addView(heading2("Live voice"));
         LinearLayout live = card(root);
