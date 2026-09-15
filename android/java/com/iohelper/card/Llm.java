@@ -212,22 +212,18 @@ public final class Llm {
      * models take tools on /responses only - measured: chat/completions
      * refuses "function tools with reasoning_effort" for gpt-5.6 - so each
      * backend gets its native loop, over one shared manifest and dispatcher.
-     * Gemini has no tool loop here and answers as before.
+     * Gemini speaks a third shape again - functionDeclarations in, functionCall
+     * parts out, functionResponse parts back - so it has its own loop too.
      */
     public static Turn askWithTools(Context ctx, String prompt) throws Exception {
         String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
-        if ("gemini".equals(backend)) {
-            Turn t = new Turn();
-            t.text = gemini(ctx, prompt);
-            return t;
-        }
         // The model has no clock and no map. "Tomorrow" and "how far" are
         // unanswerable without both.
         String where = Loc.context(ctx);
         String system = AGENT + " Now: " + new SimpleDateFormat("EEEE d MMMM yyyy, h:mm a",
                 Locale.US).format(new Date()) + "." + (where == null ? "" : " " + where);
-        Turn turn = "openai".equals(backend)
-                ? responsesLoop(ctx, system, prompt)
+        Turn turn = "openai".equals(backend) ? responsesLoop(ctx, system, prompt)
+                : "gemini".equals(backend) ? geminiLoop(ctx, system, prompt)
                 : chatLoop(ctx, system, prompt);
         if (turn.render().isEmpty() && !turn.silent) {
             // Rounds ran out, or the model went quiet after a failed tool. A
@@ -240,11 +236,84 @@ public final class Llm {
     /** Whether {@link #askWithTools} has a backend and a key to work with. */
     public static boolean toolsAvailable(Context ctx) {
         String backend = Prefs.str(ctx, Prefs.BACKEND, "groq");
-        if ("gemini".equals(backend)) {
-            return false;
+        String key = "openai".equals(backend) ? Prefs.OPENAI_KEY
+                : "gemini".equals(backend) ? Prefs.GEMINI_KEY : Prefs.GROQ_KEY;
+        return !Prefs.str(ctx, key, "").isEmpty();
+    }
+
+    /**
+     * Gemini: generateContent with functionDeclarations, run statelessly.
+     *
+     * The whole conversation is resent each round rather than referenced by an
+     * id, the way responsesLoop resends everything: it keeps the wearer's day
+     * out of anyone's server between requests. (The newer Interactions API
+     * would carry it for us via previous_interaction_id, which is exactly what
+     * this declines to do.)
+     *
+     * A model turn is echoed back VERBATIM before the results are appended -
+     * Gemini rejects a history whose function results do not follow the calls
+     * that produced them - and every result goes back in ONE user turn, since
+     * a round can contain several calls.
+     */
+    private static Turn geminiLoop(Context ctx, String system, String prompt) throws Exception {
+        String key = Prefs.str(ctx, Prefs.GEMINI_KEY, "");
+        if (key.isEmpty()) {
+            throw new LlmException("Gemini API key not set");
         }
-        return !Prefs.str(ctx, "openai".equals(backend) ? Prefs.OPENAI_KEY : Prefs.GROQ_KEY, "")
-                .isEmpty();
+        String model = Prefs.str(ctx, Prefs.GEMINI_MODEL, "gemini-3.8-flash");
+        JSONArray contents = new JSONArray();
+        contents.put(new JSONObject().put("role", "user")
+                .put("parts", new JSONArray().put(new JSONObject().put("text", prompt))));
+        Turn turn = new Turn();
+        for (int round = 0; round < MAX_ROUNDS; round++) {
+            JSONObject body = new JSONObject()
+                    .put("contents", contents)
+                    .put("systemInstruction", new JSONObject().put("parts",
+                            new JSONArray().put(new JSONObject().put("text", system))))
+                    .put("tools", Tools.geminiManifest())
+                    .put("generationConfig", new JSONObject()
+                            .put("temperature", 0.3).put("maxOutputTokens", 1024));
+            String resp = http(GEMINI_URL + "/models/" + model + ":generateContent?key=" + key,
+                    "POST", body.toString(), null, 45000);
+            JSONArray cands = new JSONObject(resp).optJSONArray("candidates");
+            JSONObject content = cands == null || cands.length() == 0 ? null
+                    : cands.getJSONObject(0).optJSONObject("content");
+            JSONArray parts = content == null ? null : content.optJSONArray("parts");
+            if (parts == null) {
+                return turn;                       // blocked, or nothing to say
+            }
+            StringBuilder text = new StringBuilder();
+            JSONArray calls = new JSONArray();
+            for (int i = 0; i < parts.length(); i++) {
+                JSONObject part = parts.optJSONObject(i);
+                if (part == null) {
+                    continue;
+                }
+                JSONObject fc = part.optJSONObject("functionCall");
+                if (fc != null) {
+                    calls.put(fc);
+                } else if (part.has("text")) {
+                    text.append(part.optString("text", ""));
+                }
+            }
+            if (calls.length() == 0) {
+                turn.text = text.toString().trim();
+                return turn;
+            }
+            contents.put(content);
+            JSONArray results = new JSONArray();
+            for (int i = 0; i < calls.length(); i++) {
+                JSONObject fc = calls.getJSONObject(i);
+                String name = fc.optString("name", "");
+                JSONObject args = fc.optJSONObject("args");
+                String result = Tools.call(ctx, name, args == null ? "{}" : args.toString(), turn);
+                results.put(new JSONObject().put("functionResponse", new JSONObject()
+                        .put("name", name)
+                        .put("response", new JSONObject().put("result", result))));
+            }
+            contents.put(new JSONObject().put("role", "user").put("parts", results));
+        }
+        return turn;
     }
 
     /** Text of a chat message, tolerating JSON null (a tool-call turn has none). */
@@ -402,7 +471,7 @@ public final class Llm {
         if (key.isEmpty()) {
             throw new LlmException("Gemini API key not set");
         }
-        String model = Prefs.str(ctx, Prefs.GEMINI_MODEL, "gemini-2.5-flash");
+        String model = Prefs.str(ctx, Prefs.GEMINI_MODEL, "gemini-3.8-flash");
         JSONObject body = new JSONObject();
         JSONArray contents = new JSONArray();
         contents.put(new JSONObject().put("role", "user")
@@ -633,7 +702,7 @@ public final class Llm {
         if (key.isEmpty()) {
             throw new LlmException("Gemini API key not set");
         }
-        String model = Prefs.str(ctx, Prefs.GEMINI_MODEL, "gemini-2.5-flash");
+        String model = Prefs.str(ctx, Prefs.GEMINI_MODEL, "gemini-3.8-flash");
         JSONObject body = new JSONObject();
         body.put("contents", new JSONArray().put(new JSONObject().put("role", "user")
                 .put("parts", new JSONArray().put(new JSONObject().put("text", user)))));

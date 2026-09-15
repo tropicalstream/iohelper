@@ -242,6 +242,27 @@ final class Tools {
     }
 
     /** OpenAI /responses shape: the same fields, one level flatter. */
+    /**
+     * Gemini's rendering: one tools entry holding every declaration.
+     *
+     * The parameter block is the same OpenAPI subset the other two use, with
+     * one difference that matters - a function taking NO arguments omits
+     * "parameters" entirely rather than sending an object with empty
+     * properties, which Gemini's schema validator rejects.
+     */
+    static JSONArray geminiManifest() throws JSONException {
+        JSONArray decls = new JSONArray();
+        for (Spec s : SPECS) {
+            JSONObject d = new JSONObject().put("name", s.name).put("description", s.desc);
+            JSONObject props = s.params.optJSONObject("properties");
+            if (props != null && props.length() > 0) {
+                d.put("parameters", s.params);
+            }
+            decls.put(d);
+        }
+        return new JSONArray().put(new JSONObject().put("functionDeclarations", decls));
+    }
+
     static JSONArray responsesManifest() throws JSONException {
         JSONArray out = new JSONArray();
         for (Spec s : SPECS) {
@@ -506,7 +527,7 @@ final class Tools {
      * label the MOST RECENTLY SET timer goes, which is what "cancel the timer"
      * means right after setting one.
      */
-    private static String cancelTimer(Context ctx, String label) {
+    static String cancelTimer(Context ctx, String label) {
         JSONObject d = Store.load(ctx);
         JSONArray ts = d.optJSONArray("timers");
         if (ts == null || ts.length() == 0) {

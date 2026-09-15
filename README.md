@@ -827,6 +827,47 @@ Denying the permission is safe: the foreground-service location type is added
 only when the permission is actually granted, so the assistant still starts and
 simply falls back to the configured city.
 
+## One key for both (`geminiLoop`, `Tools.geminiManifest`)
+
+Gemini can now be the TEXT backend as well as the voice, so a wearer who picks
+Gemini enters one key and is done. It has a real tool loop like the other two -
+`functionDeclarations` in, `functionCall` parts out, `functionResponse` parts
+back - rather than the old "Gemini answers but cannot act", which made choosing
+it a quiet downgrade: `toolsAvailable()` returned false and the model lost its
+hands.
+
+Run over **generateContent**, statelessly, resending the whole conversation
+each round exactly as the OpenAI loop does. The newer Interactions API would
+carry the history server-side via `previous_interaction_id`; this declines it,
+for the same reason the OpenAI path echoes everything back - the wearer's day
+does not need to live on anyone's server between requests.
+
+Two shape differences from the others: a function taking NO arguments omits
+`parameters` rather than sending empty properties, which Gemini's schema
+validator rejects; and results go back in ONE user turn holding a
+`functionResponse` part per call, after the model's turn is echoed verbatim.
+
+**On "they're both free":** `gemini-3.8-flash` genuinely is, on the free tier -
+input, output and thinking tokens. The Live API is NOT: its text is free but
+its AUDIO is billed ($0.005/min in, $0.018/min out), and audio is the entire
+point of it. One key is the real win; free voice is not.
+
+## A regex was cancelling the wrong thing
+
+"cancel the timer" answered "Nothing matching that to tick off." while the
+timer carried on running. It looked like the model picking `complete_todo` over
+`cancel_timer`, and the obvious suspect was the new Gemini backend - but the
+SAME phrase on the OpenAI backend gave the SAME answer, which is what proved
+no model was involved at all. `REMOVE_CARD` takes any "cancel X" as "tick X off
+the card", and it ran first.
+
+So `TIMER_CANCEL` is checked before it, and cancelling a timer never reaches a
+model now. The trailing noun is required, so "cancel navigation" (matched
+earlier by NAV_STOP) and "cancel the shopping reminder I wrote down" are
+untouched. One existing case expected "stop the timer" to fall through to the
+model; that expectation encoded the old behaviour rather than a requirement,
+and handling it in the parser is deterministic and free.
+
 ## Two live-voice backends, one pipeline (`Live`)
 
 The talk button opens Gemini Live by default (`gemini-3.1-flash-live-preview`)

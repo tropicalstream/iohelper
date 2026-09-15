@@ -192,6 +192,16 @@ public class MainActivity extends Activity {
                 Prefs.str(this, Prefs.OPENAI_KEY, ""), true);
         final EditText openaiModel = field(keys, "OpenAI model",
                 Prefs.str(this, Prefs.OPENAI_MODEL, "gpt-5.6-luna"), false);
+        final EditText geminiKey = field(keys, "Gemini API key",
+                Prefs.str(this, Prefs.GEMINI_KEY, ""), true);
+        final EditText geminiModel = field(keys, "Gemini model",
+                Prefs.str(this, Prefs.GEMINI_MODEL, "gemini-3.8-flash"), false);
+        keys.addView(hint("ONE KEY FOR BOTH: this is also the key the Gemini Live "
+                + "voice uses. gemini-3.8-flash is free of charge on the free tier "
+                + "(input, output and thinking tokens), and it can call the same "
+                + "functions as the other backends. The Live voice is a separate "
+                + "model and its AUDIO is billed even though text is free."));
+
         final EditText groqKey = field(keys, "Groq API key",
                 Prefs.str(this, Prefs.GROQ_KEY, ""), true);
         final EditText groqModel = field(keys, "Groq model",
@@ -301,6 +311,10 @@ public class MainActivity extends Activity {
                         .trim().toLowerCase(java.util.Locale.ROOT));
                 Prefs.put(MainActivity.this, Prefs.OPENAI_KEY, openaiKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.OPENAI_MODEL, openaiModel.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.GEMINI_KEY,
+                        geminiKey.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.GEMINI_MODEL,
+                        geminiModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_KEY, groqKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_MODEL, groqModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SERPAPI_KEY, serpKey.getText().toString().trim());

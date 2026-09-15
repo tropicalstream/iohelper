@@ -66,6 +66,25 @@ public final class Commands {
      * Checked after the note patterns, so "delete the note about X" still goes
      * to notes.
      */
+    /**
+     * Cancelling a TIMER, checked before {@link #REMOVE_CARD}.
+     *
+     * "cancel the timer" was swallowed by REMOVE_CARD, which takes any
+     * "cancel X" as "tick X off the card" - so it answered "Nothing matching
+     * that to tick off." while the timer carried on running. Measured on both
+     * backends, which is what proves it is the REGEX and not a model choosing
+     * the wrong tool: neither one was ever consulted.
+     *
+     * The trailing noun is required, so "cancel navigation" and "cancel the
+     * shopping reminder I wrote down" are unaffected - the first is matched
+     * earlier by NAV_STOP, and the second is a to-do, not a countdown.
+     */
+    private static final Pattern TIMER_CANCEL = Pattern.compile(
+            "^\s*(?:please\s+)?(?:cancel|stop|kill|end|delete|remove|clear|turn\s+off)\s+"
+            + "(?:the\s+|my\s+|that\s+)?(?:(.+?)\s+)?"
+            + "(?:timers?|alarms?|countdowns?)\s*[.?!]*$",
+            Pattern.CASE_INSENSITIVE);
+
     private static final Pattern REMOVE_CARD = Pattern.compile(
             "^\\s*(?:remove|delete|cancel|get rid of|take off)\\s+(?:the\\s+|my\\s+|that\\s+)?(.+)",
             Pattern.CASE_INSENSITIVE);
@@ -1120,6 +1139,12 @@ public final class Commands {
             return new Cmd("note.read", 0, about == null ? "" : about);
         }
 
+        Matcher tc = TIMER_CANCEL.matcher(t);
+        if (tc.find()) {
+            String which = tc.group(1) == null ? "" : tc.group(1).trim();
+            return new Cmd("timer.cancel", 0, which);
+        }
+
         Matcher rc = REMOVE_CARD.matcher(t);
         if (rc.find()) {
             return new Cmd("done", 0,
@@ -1739,6 +1764,10 @@ public final class Commands {
                             ? played + " (phone)"
                             : played;
                 }
+                case "timer.cancel":
+                    // Empty label means the most recent, which is what a bare
+                    // "cancel the timer" means when only one is running.
+                    return Tools.cancelTimer(ctx, cmd.text.isEmpty() ? null : cmd.text);
                 case "media.incomplete":
                     return "♪ Didn't catch what to play - say it again?";
                 case "nav.start":

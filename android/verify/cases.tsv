@@ -191,7 +191,7 @@ how long do i let the dough rest before the next fold jarvis	none
 how long should i pause between coats of paint jarvis	none
 how do i get back to the hotel from here jarvis	none
 my back is killing me jarvis	none
-stop the timer jarvis	none
+stop the timer jarvis	timer.cancel
 remind me to stop by the pharmacy on the way home jarvis	todo
 remind me to play with the dog before bed jarvis	todo
 remind me to skip the nine am standup tomorrow jarvis	todo
@@ -454,3 +454,6 @@ play tech news weekly on pocket casts jarvis	media_play_pocketcasts
 pocket casts play the daily	media_play_pocketcasts
 play hard fork on my podcasts jarvis	media_play_podcasts
 play the joe rogan podcast on spotify	media_play_spotify
+cancel the timer	timer.cancel
+cancel the pasta timer jarvis	timer.cancel
+stop the alarm	timer.cancel
