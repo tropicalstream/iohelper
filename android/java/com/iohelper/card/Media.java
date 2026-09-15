@@ -1,6 +1,8 @@
 package com.iohelper.card;
 
 import android.content.Context;
+import android.media.session.MediaController;
+import android.media.session.PlaybackState;
 import android.util.Base64;
 
 import org.json.JSONArray;
@@ -44,6 +46,9 @@ public final class Media {
     private static final String SPOTIFY_SEARCH_URL = "https://api.spotify.com/v1/search";
     private static final String YT_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search";
     private static final String YT_PKG = "com.google.android.youtube";
+    /** Pocket Casts. Cold, it holds no session for a search to land in. */
+    private static final String PC_ACTIVITY =
+            "au.com.shiftyjelly.pocketcasts/.ui.MainActivity";
     /**
      * The mark on a YouTube line. Filled "▶" means "playing" for everything -
      * Spotify, Sonos, a phone track - so a video was indistinguishable from a
@@ -88,6 +93,31 @@ public final class Media {
         int code = keyFor(action);
         if (code < 0) {
             return null;
+        }
+        // A podcast has no "next track", and Pocket Casts says so: its session
+        // advertises neither SKIP_TO_NEXT nor SKIP_TO_PREVIOUS (measured,
+        // actions=122703). The media keys for those therefore reached it and
+        // did nothing at all, while the card still claimed "⏭ Skipped." What it
+        // does offer is FAST_FORWARD and REWIND - the jumps, which is what
+        // "skip" means to somebody listening to a podcast anyway. Gated on
+        // Pocket Casts OWNING the media keys rather than on it playing: a
+        // paused podcast still owns them, and "is it playing" sent skip down
+        // the keyevent path to an app that ignores it. When music is on top,
+        // "next" is still a real track skip. The jump length is the wearer's
+        // own setting in the app, so the card names no number it cannot know.
+        if ("next".equals(action) || "previous".equals(action)) {
+            MediaController pc = Sessions.ownsMediaKeys(ctx, Sessions.POCKETCASTS)
+                    ? Sessions.find(ctx, Sessions.POCKETCASTS) : null;
+            if (pc != null
+                    && !Sessions.supports(pc, PlaybackState.ACTION_SKIP_TO_NEXT)
+                    && Sessions.supports(pc, PlaybackState.ACTION_FAST_FORWARD)) {
+                if ("next".equals(action)) {
+                    pc.getTransportControls().fastForward();
+                    return "⏭ Skipped forward.";
+                }
+                pc.getTransportControls().rewind();
+                return "⏮ Skipped back.";
+            }
         }
         try {
             // Volume steps of one are barely audible; a spoken "louder" means more.
@@ -1216,6 +1246,80 @@ public final class Media {
      * driven through the Web API instead (playViaApi / playUrisApi, which target
      * the Spotify device directly); a YouTube watch URL autoplays on its own.
      */
+    /**
+     * Start a podcast by name on Pocket Casts.
+     *
+     * Its session advertises ACTION_PLAY_FROM_SEARCH, which is the mechanism
+     * Android Auto and Assistant use and the only one that actually plays:
+     * measured, the activity intent that looks equivalent
+     * (ACTION_MEDIA_PLAY_FROM_SEARCH) only opened the app and left the session
+     * in state=ERROR(7) with nothing playing. Pocket Casts searches what the
+     * wearer is SUBSCRIBED to, so this finds their own shows rather than the
+     * whole directory.
+     *
+     * A cold app holds no session at all, so it is started first and waited
+     * for - firing a control at a package that is not there would otherwise
+     * report success and play nothing.
+     */
+    static String pocketcasts(Context ctx, String query) {
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) {
+            // Bare "play on Pocket Casts" means resume what is already loaded.
+            MediaController c = Sessions.find(ctx, Sessions.POCKETCASTS);
+            if (c == null) {
+                return "♪ Pocket Casts isn't running - say what to play.";
+            }
+            c.getTransportControls().play();
+            String what = waitForPodcast(ctx, 6000);
+            return what == null ? "♪ Asked Pocket Casts to resume."
+                    : "▶ " + what;
+        }
+        if (Sessions.find(ctx, Sessions.POCKETCASTS) == null) {
+            try {
+                LocalAdb.shell(ctx, "am start -n " + PC_ACTIVITY, 12000);
+            } catch (Exception e) {
+                return "Could not open Pocket Casts (" + e + ")";
+            }
+            for (int i = 0; i < 12; i++) {
+                if (Sessions.find(ctx, Sessions.POCKETCASTS) != null) {
+                    break;
+                }
+                pause(700);
+            }
+        }
+        if (!Sessions.playFromSearch(ctx, Sessions.POCKETCASTS, q)) {
+            return "♪ Pocket Casts wouldn't take a search for " + q + ".";
+        }
+        String what = waitForPodcast(ctx, 12000);
+        if (what == null) {
+            // Its search is over SUBSCRIBED shows; an unsubscribed one is a
+            // miss, not a fault, and saying which is more use than "failed".
+            return "♪ Nothing in your Pocket Casts subscriptions for " + q + ".";
+        }
+        return "▶ " + what;
+    }
+
+    /** Wait for Pocket Casts to actually start, and say what it started. */
+    private static String waitForPodcast(Context ctx, long budgetMs) {
+        long end = System.currentTimeMillis() + budgetMs;
+        while (System.currentTimeMillis() < end) {
+            if (Sessions.isPlaying(ctx, Sessions.POCKETCASTS)) {
+                String what = Sessions.nowPlaying(ctx, Sessions.POCKETCASTS);
+                return what == null ? "Playing on Pocket Casts" : what;
+            }
+            pause(600);
+        }
+        return null;
+    }
+
+    private static void pause(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     /**
      * open(), plus the guarantee that what was opened is actually playing.
      *

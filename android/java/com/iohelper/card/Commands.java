@@ -163,7 +163,8 @@ public final class Commands {
     private static final Pattern PLAY = Pattern.compile(
             "^\\W*(?:can you |could you |please |hey )*"
             + "(?:play|put on|throw on|start playing|shuffle)\\s+(.+?)"
-            + "(?:\\s+(?:on|from|in)\\s+(spotify|you ?tube))?\\s*[.?!]*$",
+            + "(?:\\s+(?:on|from|in)\\s+(?:my\\s+|the\\s+)?"
+            + "(spotify|you ?tube|pocket ?casts|podcasts?))?\\s*[.?!]*$",
             Pattern.CASE_INSENSITIVE);
     /**
      * START turn-by-turn navigation ("navigate to X", "take me to X", "walk me
@@ -249,7 +250,7 @@ public final class Commands {
      * the app name is all that survives to say what was meant.
      */
     private static final Pattern SERVICE_FIRST = Pattern.compile(
-            "^\\W*(spotify|you ?tube)\\s+(?:play\\s+|search\\s+)?(.+?)\\s*[.?!]*$",
+            "^\\W*(spotify|you ?tube|pocket ?casts)\\s+(?:play\\s+|search\\s+)?(.+?)\\s*[.?!]*$",
             Pattern.CASE_INSENSITIVE);
     /**
      * Transport control: anchored AND kept short. "next" and "stop" are ordinary
@@ -298,7 +299,25 @@ public final class Commands {
         if (low.matches(".*\\bspotify\\b.*")) {
             return "spotify";
         }
+        // The APP name only. A bare "podcast" stays out of this, or "play the
+        // X podcast" would be taken off Spotify on the strength of one common
+        // noun; the explicit trailing "on podcasts" form in PLAY covers that.
+        if (low.matches(".*\\bpocket ?casts\\b.*")) {
+            return "pocketcasts";
+        }
         return null;
+    }
+
+    /**
+     * The spellings that all mean Pocket Casts.
+     *
+     * PLAY's trailing group keeps "podcast"/"podcasts" as the wearer said them,
+     * while SERVICE_FIRST and serviceMentioned both normalise to "pocketcasts",
+     * so the runner has to accept every one of them.
+     */
+    private static boolean podcastApp(String service) {
+        return "pocketcasts".equals(service) || "podcast".equals(service)
+                || "podcasts".equals(service);
     }
 
     /**
@@ -964,7 +983,7 @@ public final class Commands {
             String service = pl.group(2) != null
                     ? pl.group(2).toLowerCase(Locale.US).replace(" ", "")
                     : serviceMentioned(low);
-            q = q.replaceAll("(?i)\\b(?:on|from|in)?\\s*\\b(you ?tube|spotify)\\b", " ")
+            q = q.replaceAll("(?i)\\b(?:on|from|in)?\\s*\\b(you ?tube|spotify|pocket ?casts)\\b", " ")
                     .replaceAll("\\s+", " ").trim();
             // "the latest/newest/most popular video (from/of) X", YouTube only:
             // recognise it as a sort + channel, not literal search text - see
@@ -1672,7 +1691,7 @@ public final class Commands {
                 }
                 case "media.play": {
                     // Descriptive resolution on the phone too (Spotify only).
-                    if (!"youtube".equals(cmd.due)) {
+                    if (!"youtube".equals(cmd.due) && !podcastApp(cmd.due)) {
                         Resolved rd = resolveDescriptive(ctx, cmd.descr, cmd.contentType, cmd.said);
                         if (rd != null) {
                             String out;
@@ -1688,9 +1707,15 @@ public final class Commands {
                                     ? out + " (phone)" : out;
                         }
                     }
-                    String played = "youtube".equals(cmd.due)
-                            ? Media.youtube(ctx, cmd.text, cmd.ytSort, cmd.ytChannel, cmd.ytSince)
-                            : Media.spotify(ctx, cmd.text, cmd.contentType, cmd.shuffle);
+                    String played;
+                    if ("youtube".equals(cmd.due)) {
+                        played = Media.youtube(ctx, cmd.text, cmd.ytSort, cmd.ytChannel,
+                                cmd.ytSince);
+                    } else if (podcastApp(cmd.due)) {
+                        played = Media.pocketcasts(ctx, cmd.text);
+                    } else {
+                        played = Media.spotify(ctx, cmd.text, cmd.contentType, cmd.shuffle);
+                    }
                     // A speaker was named but playback only reaches the phone:
                     // say where it actually went rather than let it look as
                     // though the speaker was used.

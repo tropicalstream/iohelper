@@ -827,6 +827,41 @@ Denying the permission is safe: the foreground-service location type is added
 only when the permission is actually granted, so the assistant still starts and
 simply falls back to the configured city.
 
+## Controlling a podcast app (`Sessions`, `Media.pocketcasts`)
+
+Pocket Casts is driven through the real `MediaSessionManager` rather than by
+shelling out, which is possible only because `NavListener` is an *enabled*
+`NotificationListenerService`: `getActiveSessions()` takes the component name
+of one as proof of permission and refuses anything else. iohelper already holds
+that grant for the navigation relay, so nothing new is asked of the wearer.
+
+Three things were measured on the device, and each one changed the design:
+
+- **Only the session route actually plays.** Pocket Casts advertises
+  `ACTION_PLAY_FROM_SEARCH`, which is what Android Auto and Assistant use, and
+  `playFromSearch()` starts a show by name. The activity intent that looks
+  equivalent - `ACTION_MEDIA_PLAY_FROM_SEARCH`, deliverable with plain
+  `am start` - only opens the app: it left the session in `state=ERROR(7)` with
+  the main screen showing and nothing playing. That is the same "it searched
+  but did not play" failure the YouTube path already had.
+- **Its search matches SHOWS you subscribe to, not episode titles.** "tech news
+  weekly" found nothing, because the subscription is *All TWiT.tv Shows
+  (Audio)* and that is only an episode name; "all twit" started it. So a miss
+  says which - "Nothing in your Pocket Casts subscriptions for X" - rather than
+  reporting a fault.
+- **A podcast has no "next track", and it says so.** Its session advertises
+  neither `SKIP_TO_NEXT` nor `SKIP_TO_PREVIOUS` (`actions=122703`), so the
+  media keys for those reached it and did nothing while the card still claimed
+  "Skipped." It offers `FAST_FORWARD` / `REWIND` instead - measured at 30.4 s
+  with playback paused, so only the skip could move the position - which is
+  what "skip" means to somebody listening to a podcast anyway.
+
+The substitution is gated on Pocket Casts *owning the media keys*, not on it
+playing: `getActiveSessions()` returns controllers in decreasing priority, so
+the first one holds the buttons. A **paused** podcast still owns them, and
+gating on "is it playing" sent "skip" back down the keyevent path to an app
+that ignores it. When music is on top, "next" is still a real track skip.
+
 ## Playing an artist on Sonos (`Media.artistPlaylist`)
 
 "Play Men Without Hats on Sonos" should fill the queue with that band's music.
