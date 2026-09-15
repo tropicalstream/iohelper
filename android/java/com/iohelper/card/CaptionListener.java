@@ -39,26 +39,18 @@ public class CaptionListener extends AccessibilityService {
     private static final String TAG = "iohelperCaps";
     private static final String YT = "com.google.android.youtube";
     /**
-     * How often the screen may be sampled, and the whole latency budget this
-     * app controls.
+     * Caption lines turn over every second or two - far faster than a card can
+     * be read on the lens, so they are sampled rather than followed.
      *
-     * This was 1500 ms, chosen to sample at READING speed: caption lines turn
-     * over every second or two, the lens shows one card, and a new card wipes
-     * the last, so following every line means text disappearing before it can
-     * be read. The cost is that a line can be a second and a half stale and the
-     * ones between samples are never shown at all - which is what "the captions
-     * lag the video" actually was.
-     *
-     * The default now favours keeping up with the video. It is a preference
-     * because the trade is a matter of taste and of how fast the speaker talks:
-     * raise it towards 1500 for legibility, lower it towards the floor to
-     * follow along. Below about 250 ms there is nothing left to win - the tree
-     * walk that reads the caption costs real time (dozens of binder round-trips)
-     * and the relay to the glasses costs more still, neither of which this
-     * number can touch.
+     * This was briefly made tunable, with a much lower default, to chase a
+     * perceived lag behind the video. Measured, that was the wrong target: the
+     * tree walk costs single-digit milliseconds and the relay to the glasses
+     * about 300 ms, while YouTube only publishes a new caption every ~5 s. The
+     * sampling gap was never the bottleneck, so sampling harder bought nothing
+     * and only cost tree walks. The remaining lag is the firmware's own render,
+     * which nothing on this side can reach. Back to sampling at reading speed.
      */
-    private static final long DEFAULT_GAP_MS = 350;
-    private static final long MIN_ALLOWED_GAP_MS = 200;
+    private static final long MIN_GAP_MS = 1500;
     /** Don't stomp an answer the wearer just asked for with a caption. */
     private static final long ANSWER_GRACE_MS = 6000;
 
@@ -126,9 +118,7 @@ public class CaptionListener extends AccessibilityService {
             return;                                  // captions: YouTube only
         }
         long now = System.currentTimeMillis();
-        long gap = Math.max(MIN_ALLOWED_GAP_MS,
-                Prefs.integer(this, Prefs.CAPTION_GAP, (int) DEFAULT_GAP_MS));
-        if (now - lastAt < gap) {
+        if (now - lastAt < MIN_GAP_MS) {
             return;                                  // sampled, not followed
         }
         // Stamp the SAMPLE, not the post. YouTube fires window-content events

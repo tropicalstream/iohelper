@@ -64,15 +64,6 @@ public final class Prefs {
     /** Mirror the phone's on-screen YouTube captions to the glasses. */
     public static final String CAPTIONS = "captions.relay";
     /**
-     * How often the caption mirror may sample the screen, in milliseconds.
-     *
-     * The whole latency budget the app controls. Low follows the video closely
-     * and replaces the card often; high samples at reading speed and skips
-     * lines. Tunable because the right answer is a matter of taste and of how
-     * fast the video talks - see CaptionListener.
-     */
-    public static final String CAPTION_GAP = "captions.min_gap_ms";
-    /**
      * Apps whose notifications iohelper relays to the glasses IN FULL, paged
      * across cards, comma-separated package names. RayNeo's own mirror keeps
      * only the title and a truncated line and drops action buttons, so a
