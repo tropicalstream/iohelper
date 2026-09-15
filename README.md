@@ -1,5 +1,28 @@
 # iohelper — a standalone voice assistant for RayNeo iO glasses
 
+> ## One free key now runs the whole assistant
+>
+> Set the LLM backend to **gemini** and the live voice to **gemini**, paste a
+> single [Gemini API key](https://aistudio.google.com/apikey), and every part
+> of it is free on Google's free tier: `gemini-3.8-flash` decides and calls the
+> functions, and `gemini-3.8-live` listens and speaks — **audio included**. No
+> OpenAI key, no Groq key, nothing else to sign up for.
+>
+> It is the same assistant either way. Both voices delegate to the same
+> backend, so the answers and the cards on the lens are identical; what changed
+> is that the free path is now a complete one rather than a text-only
+> fallback — Gemini gained a real tool loop, so choosing it no longer costs the
+> model its hands.
+>
+> **What "free" means here:** the free tier is rate limited rather than
+> charged — requests per minute and per day. Google sets those per account and
+> shows yours at
+> [aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit); the
+> daily allowance resets at midnight Pacific. The one thing worth knowing is
+> that a live voice session spends continuously while it is OPEN, not per
+> question, so the idle hang-up (`talk.idle_seconds`, 120 s by default) is what
+> stops a session left running from eating the day's quota.
+
 Press the **crown** on the glasses, ask a question, and the answer appears on
 the lens a few seconds later — no PC, no wake word, nothing to say first.
 Answers come from **OpenAI** (`gpt-5.6-luna`, about a tenth of a cent a

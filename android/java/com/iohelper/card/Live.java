@@ -325,7 +325,19 @@ interface Live {
      */
     final class Gemini implements Live {
 
-        /** Stable, and Google's recommended default for low-latency voice. */
+        /**
+         * The default Live model.
+         *
+         * BOTH Live models carry audio free of charge on the free tier, so
+         * cost does not choose between them - which leaves measured behaviour,
+         * and 3.8 wins on that: it acknowledged a delegated request in under a
+         * second and spoke the answer without the retry firing, where
+         * gemini-3.1-flash-live-preview took about six seconds and the retry
+         * queued a second turn on top. 3.1 is a preview Google's own model
+         * list marks legacy; it stays in the pull-down for anyone who wants
+         * it, and speechWaitMs() is sized for the slower of the two so the
+         * retry cannot fire early on either.
+         */
         static final String MODEL = "gemini-3.8-live";
 
         private String model(Context ctx) {

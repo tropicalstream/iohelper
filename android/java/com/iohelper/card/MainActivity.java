@@ -147,65 +147,80 @@ public class MainActivity extends Activity {
         // out of habit is still stripped from the question, and the alwayson
         // gate still needs both - they are simply no longer presented as
         // something to set while that source is broken in RayNeo's firmware.
-        final EditText source = field(voice, "Source (assistant | alwayson)",
-                Prefs.source(this), false);
+        picker(voice, "SOURCE", Prefs.WAKE_SOURCE, Prefs.source(this),
+                "assistant", "alwayson");
         voice.addView(hint("assistant = crown press, no wake word - pressing the crown "
                 + "is the trigger (RayNeo answers too). alwayson = hands-free, currently "
                 + "broken in RayNeo's firmware."));
 
         root.addView(heading2("Live voice"));
         LinearLayout live = card(root);
-        final EditText talkBackend = field(live, "Backend (gemini | openai)",
-                Prefs.str(this, Prefs.TALK_BACKEND, "gemini"), false);
-        live.addView(hint("Which model the talk button opens. gemini = "
-                + Live.Gemini.MODEL + ", using the Gemini key below; openai = "
-                + "gpt-live-1, using the OpenAI key. Both delegate to the same "
-                + "assistant, so answers and cards are identical - what differs "
-                + "is the voice, the latency and the bill. Changing this takes "
-                + "effect on the next session, not the one in progress."));
-        final EditText talkModel = field(live, "Gemini Live model",
-                Prefs.str(this, Prefs.TALK_MODEL, Live.Gemini.MODEL), false);
-        live.addView(hint("Live models turn over fast and are not "
-                + "interchangeable. " + Live.Gemini.MODEL + " is the stable "
-                + "default for low-latency voice; gemini-3.1-flash-live-preview "
-                + "is a preview Google's own model list marks legacy. Every Live "
-                + "model is Live-API-only, so none of them can serve as the text "
-                + "backend above - that stays a separate model."));
+        picker(live, "BACKEND", Prefs.TALK_BACKEND,
+                Prefs.str(this, Prefs.TALK_BACKEND, "gemini"), "gemini", "openai");
+        live.addView(hint("Which model the talk button opens. gemini uses the "
+                + "Gemini key below and is FREE on the free tier, audio included; "
+                + "openai is gpt-live-1 on the OpenAI key and is not. Both "
+                + "delegate to the same assistant, so answers and cards are "
+                + "identical - what differs is the voice, the latency and the "
+                + "bill. Takes effect on the next session, not the one running."));
+        picker(live, "GEMINI LIVE MODEL", Prefs.TALK_MODEL,
+                Prefs.str(this, Prefs.TALK_MODEL, Live.Gemini.MODEL),
+                Live.Gemini.MODEL, "gemini-3.8-live");
+        live.addView(hint("Both are free on the free tier, audio included, so "
+                + "this is not a cost choice. " + Live.Gemini.MODEL + " is the "
+                + "default because it measured quicker - it acknowledged a "
+                + "delegated request in under a second where the 3.1 preview took "
+                + "about six. Every Live model is Live-API-only, so neither can "
+                + "serve as the text backend below; that stays a separate model."));
 
-        final EditText talkVoice = field(live, "Voice",
-                Prefs.str(this, Prefs.TALK_VOICE, ""), false);
+        picker(live, "VOICE", Prefs.TALK_VOICE, Prefs.str(this, Prefs.TALK_VOICE, ""),
+                "", "Kore", "Puck", "Charon", "Fenrir", "Aoede", "Zephyr", "Leda", "Orus",
+                "marin", "cedar", "quartz", "ripple", "vesper", "willow", "stone",
+                "gleam", "meridian", "bossa", "tempo", "beacon", "delta", "cinder");
         live.addView(hint("Speaking now as: " + Live.of(this).voiceInUse(this)
-                + ". Each backend has its OWN voice names and rejects the other's, so "
-                + "a name saved for one is ignored by the other rather than sent and "
-                + "refused - which is why the box above and the voice in use can "
-                + "differ. Gemini: Kore, Puck, Charon, Fenrir, Aoede, Zephyr, Leda, "
-                + "Orus. OpenAI, verified against the API: marin, cedar, quartz, "
-                + "ripple, vesper, willow, stone, gleam, meridian, bossa, tempo, "
-                + "beacon, delta, cinder. Takes effect on the next session - a voice "
-                + "cannot be changed once one is running."));
+                + ". The first entry is blank, meaning each backend's own default. "
+                + "Kore through Orus are Gemini's; marin through cinder are "
+                + "OpenAI's, verified against the API. A name belonging to the "
+                + "OTHER backend is ignored rather than sent and refused - which "
+                + "is why this and the voice in use can differ. Takes effect on "
+                + "the next session; a voice cannot change under a running one."));
 
         root.addView(heading2("Services"));
         LinearLayout keys = card(root);
-        final EditText backend = field(keys, "LLM backend (groq | openai | gemini)",
-                Prefs.str(this, Prefs.BACKEND, "groq"), false);
+        keys.addView(hint("ONE FREE KEY RUNS THE WHOLE ASSISTANT. Set the LLM "
+                + "backend to gemini and the live voice to gemini, paste a single "
+                + "Gemini key, and every part is free on Google's free tier - the "
+                + "text model that decides and calls the functions, and the live "
+                + "voice that listens and speaks, audio included. No OpenAI key, "
+                + "no Groq key, nothing else to sign up for. The free tier is rate "
+                + "limited per minute and per day rather than charged; Google sets "
+                + "those per account and shows them at aistudio.google.com/rate-limit, "
+                + "and the daily allowance resets at midnight Pacific. A live voice "
+                + "session spends while it is OPEN, so the idle hang-up below is "
+                + "what keeps a forgotten session from eating the day's quota."));
+        picker(keys, "LLM BACKEND", Prefs.BACKEND, Prefs.str(this, Prefs.BACKEND, "groq"),
+                "gemini", "openai", "groq");
         final EditText openaiKey = field(keys, "OpenAI API key",
                 Prefs.str(this, Prefs.OPENAI_KEY, ""), true);
-        final EditText openaiModel = field(keys, "OpenAI model",
-                Prefs.str(this, Prefs.OPENAI_MODEL, "gpt-5.6-luna"), false);
+        picker(keys, "OPENAI MODEL", Prefs.OPENAI_MODEL,
+                Prefs.str(this, Prefs.OPENAI_MODEL, "gpt-5.6-luna"),
+                "gpt-5.6-luna", "gpt-5.6");
         final EditText geminiKey = field(keys, "Gemini API key",
                 Prefs.str(this, Prefs.GEMINI_KEY, ""), true);
-        final EditText geminiModel = field(keys, "Gemini model",
-                Prefs.str(this, Prefs.GEMINI_MODEL, "gemini-3.8-flash"), false);
-        keys.addView(hint("ONE KEY FOR BOTH: this is also the key the Gemini Live "
-                + "voice uses. gemini-3.8-flash is free of charge on the free tier "
-                + "(input, output and thinking tokens), and it can call the same "
-                + "functions as the other backends. The Live voice is a separate "
-                + "model and its AUDIO is billed even though text is free."));
+        picker(keys, "GEMINI MODEL", Prefs.GEMINI_MODEL,
+                Prefs.str(this, Prefs.GEMINI_MODEL, "gemini-3.8-flash"),
+                "gemini-3.8-flash", "gemini-2.5-flash");
+        keys.addView(hint("ONE KEY FOR BOTH: the Gemini Live voice uses this same "
+                + "key. Pick gemini for the LLM backend and for the live voice and "
+                + "the whole assistant is free on the free tier - text here, audio "
+                + "there - with one key to enter and the same functions callable as "
+                + "on the other backends."));
 
         final EditText groqKey = field(keys, "Groq API key",
                 Prefs.str(this, Prefs.GROQ_KEY, ""), true);
-        final EditText groqModel = field(keys, "Groq model",
-                Prefs.str(this, Prefs.GROQ_MODEL, "openai/gpt-oss-120b"), false);
+        picker(keys, "GROQ MODEL", Prefs.GROQ_MODEL,
+                Prefs.str(this, Prefs.GROQ_MODEL, "openai/gpt-oss-120b"),
+                "openai/gpt-oss-120b", "llama-3.3-70b-versatile");
         toggle(keys, "Let the model act (tools)", Prefs.TOOLS, true);
         keys.addView(hint("With tools on, a request the built-in phrases miss still "
                 + "gets done: the model calls the same timer, list, calendar, "
@@ -306,17 +321,14 @@ public class MainActivity extends Activity {
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Prefs.put(MainActivity.this, Prefs.WAKE_SOURCE, source.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.BACKEND, backend.getText().toString()
-                        .trim().toLowerCase(java.util.Locale.ROOT));
+                // Only the TYPED settings are saved here. Every pull-down writes
+                // its pref the moment it changes, the way the switches do, so
+                // Save is about the boxes - and a wearer who changes a dropdown
+                // and walks away has still changed it.
                 Prefs.put(MainActivity.this, Prefs.OPENAI_KEY, openaiKey.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.OPENAI_MODEL, openaiModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GEMINI_KEY,
                         geminiKey.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.GEMINI_MODEL,
-                        geminiModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_KEY, groqKey.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.GROQ_MODEL, groqModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SERPAPI_KEY, serpKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SEARCH_LOCATION, location.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SPOTIFY_ID, spotifyId.getText().toString().trim());
@@ -324,13 +336,6 @@ public class MainActivity extends Activity {
                 Prefs.put(MainActivity.this, Prefs.YOUTUBE_KEY, youtubeKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.RADIO_CALLSIGNS,
                         callSigns.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.TALK_BACKEND,
-                        talkBackend.getText().toString().trim().toLowerCase(
-                                java.util.Locale.US));
-                Prefs.put(MainActivity.this, Prefs.TALK_VOICE,
-                        talkVoice.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.TALK_MODEL,
-                        talkModel.getText().toString().trim());
                 Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
                 refresh();
             }
@@ -868,6 +873,68 @@ public class MainActivity extends Activity {
         }
         parent.addView(e);
         return e;
+    }
+
+    /**
+     * A pull-down backed directly by a pref - no Save needed, like {@link #toggle}.
+     *
+     * For every setting whose values are KNOWN. Typing "gemni" or "asistant"
+     * into a box that silently accepts anything is a bad way to find out a
+     * setting was wrong, and half of these are names the wearer has no reason
+     * to have memorised. Keys stay as text, because a key cannot be offered in
+     * a list, and so do the genuinely free-form ones (a location, a list of
+     * call signs).
+     *
+     * A value already stored that is NOT among the options is added at the
+     * front rather than dropped, so opening this screen can never quietly
+     * rewrite a setting that was provisioned from adb or set by a newer build.
+     */
+    private android.widget.Spinner picker(ViewGroup parent, String label, final String key,
+                                          String def, String... options) {
+        TextView l = new TextView(this);
+        l.setText(label);
+        l.setTextColor(MUTED);
+        l.setTextSize(11);
+        l.setLetterSpacing(0.06f);
+        l.setPadding(dp(2), dp(12), 0, dp(6));
+        parent.addView(l);
+
+        final java.util.List<String> items = new java.util.ArrayList<>(
+                java.util.Arrays.asList(options));
+        String current = Prefs.str(this, key, def);
+        if (!items.contains(current)) {
+            items.add(0, current);
+        }
+        android.widget.Spinner sp = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> ad = new android.widget.ArrayAdapter<String>(
+                this, android.R.layout.simple_spinner_item, items) {
+            @Override
+            public android.view.View getView(int pos, android.view.View convert,
+                                             ViewGroup parentView) {
+                TextView v = (TextView) super.getView(pos, convert, parentView);
+                v.setTextColor(FG);
+                v.setTextSize(14);
+                return v;
+            }
+        };
+        ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sp.setAdapter(ad);
+        sp.setSelection(items.indexOf(current));
+        sp.setBackground(surface(INPUT, LINE, 10));
+        sp.setPadding(dp(12), dp(10), dp(12), dp(10));
+        sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> a, android.view.View v,
+                                       int pos, long id) {
+                Prefs.put(MainActivity.this, key, items.get(pos));
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> a) {
+            }
+        });
+        parent.addView(sp);
+        return sp;
     }
 
     /** An on/off row backed directly by a pref - no Save needed. */
