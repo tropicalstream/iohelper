@@ -43,6 +43,7 @@ public final class Media {
     private static final String SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
     private static final String SPOTIFY_SEARCH_URL = "https://api.spotify.com/v1/search";
     private static final String YT_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search";
+    private static final String YT_PKG = "com.google.android.youtube";
     /**
      * The mark on a YouTube line. Filled "▶" means "playing" for everything -
      * Spotify, Sonos, a phone track - so a video was indistinguishable from a
@@ -141,15 +142,8 @@ public final class Media {
         }
     }
 
-    /**
-     * What is playing right now, across every media session.
-     *
-     * Deliberately prefers the session that is actually PLAYING rather than the
-     * first one listed: several apps hold sessions at once here (a music app, a
-     * podcast, a browser), and taking the first meant answering with a paused
-     * podcast while music played.
-     */
-    public static Track current(Context ctx) {
+    /** Every media session the phone is holding, in the order dumpsys lists them. */
+    private static java.util.List<Track> sessions(Context ctx) {
         try {
             String out = LocalAdb.shell(ctx, "dumpsys media_session", 10000);
             java.util.List<Track> found = new java.util.ArrayList<>();
@@ -188,15 +182,28 @@ public final class Media {
             if (title != null) {
                 found.add(new Track(pkg, title, artist, Boolean.TRUE.equals(playing)));
             }
-            for (Track t : found) {
-                if (t.playing) {
-                    return t;
-                }
-            }
-            return found.isEmpty() ? null : found.get(0);
+            return found;
         } catch (Exception e) {
-            return null;
+            return java.util.Collections.emptyList();
         }
+    }
+
+    /**
+     * What is playing right now, across every media session.
+     *
+     * Deliberately prefers the session that is actually PLAYING rather than the
+     * first one listed: several apps hold sessions at once here (a music app, a
+     * podcast, a browser), and taking the first meant answering with a paused
+     * podcast while music played.
+     */
+    public static Track current(Context ctx) {
+        java.util.List<Track> found = sessions(ctx);
+        for (Track t : found) {
+            if (t.playing) {
+                return t;
+            }
+        }
+        return found.isEmpty() ? null : found.get(0);
     }
 
     /**
@@ -1138,7 +1145,7 @@ public final class Media {
                         JSONObject v = vids.getJSONObject(0);
                         String link = v.optString("link", "");
                         if (link.contains("watch?v=")) {
-                            return open(ctx, link, YT_GLYPH + " " + v.optString("title", q));
+                            return openVideo(ctx, link, YT_GLYPH + " " + v.optString("title", q));
                         }
                     }
                 } catch (Exception ignored) {
@@ -1192,7 +1199,7 @@ public final class Media {
             JSONObject first = items.getJSONObject(0);
             String id = first.getJSONObject("id").getString("videoId");
             String title = first.getJSONObject("snippet").optString("title", query);
-            return open(ctx, "https://www.youtube.com/watch?v=" + id, YT_GLYPH + " " + title);
+            return openVideo(ctx, "https://www.youtube.com/watch?v=" + id, YT_GLYPH + " " + title);
         } catch (Exception e) {
             return "YouTube search failed (" + e + ")";
         }
@@ -1209,6 +1216,69 @@ public final class Media {
      * driven through the Web API instead (playViaApi / playUrisApi, which target
      * the Spotify device directly); a YouTube watch URL autoplays on its own.
      */
+    /**
+     * open(), plus the guarantee that what was opened is actually playing.
+     *
+     * Only for links that ARE a video. A results page has nothing to play, and
+     * pressing play at one would start whatever the last session was.
+     */
+    private static String openVideo(Context ctx, String uri, String say) {
+        String out = open(ctx, uri, say);
+        if (out.equals(say)) {                       // the launch itself worked
+            ensurePlaying(ctx);
+        }
+        return out;
+    }
+
+    /**
+     * Make sure a launched video really started.
+     *
+     * `am start` on a watch URL autoplays a video YouTube does not already have
+     * open. If it DOES have that one open and paused - the same thing asked for
+     * twice, or paused earlier and come back to - the deep link only brings the
+     * existing, paused player forward. The card then says "playing" over a still
+     * frame, and the live session hangs up on the strength of it, because
+     * playing() reads the card's own text rather than the phone. Measured: a
+     * fresh video reached PLAYING within a second; a re-opened one sat at
+     * PAUSED, at the position it was left.
+     *
+     * KEYCODE_MEDIA_PLAY (126), never PLAY_PAUSE (85): a toggle sent to a video
+     * that did start on its own would pause the very thing this is here to
+     * guarantee. Pressed at most once, and only when YOUTUBE's own session says
+     * it is not playing - an unreadable dump is not evidence of a pause, and
+     * some other app's paused session is none of this method's business.
+     */
+    private static void ensurePlaying(Context ctx) {
+        new Thread(() -> {
+            try {
+                // Let the deep link swap the player over first. Checking sooner
+                // reads the OUTGOING video's state and would press play on it.
+                Thread.sleep(2500);
+                for (int i = 0; i < 4; i++) {
+                    Track yt = null;
+                    for (Track t : sessions(ctx)) {
+                        if (YT_PKG.equals(t.pkg)) {
+                            yt = t;
+                            break;
+                        }
+                    }
+                    if (yt == null) {
+                        Thread.sleep(1500);          // player not up yet
+                        continue;
+                    }
+                    if (yt.playing) {
+                        return;                      // started on its own
+                    }
+                    android.util.Log.i("iohelperMedia", "opened video was paused - pressing play");
+                    LocalAdb.shell(ctx, "input keyevent 126", 6000);
+                    return;
+                }
+            } catch (Exception e) {
+                android.util.Log.i("iohelperMedia", "ensurePlaying failed: " + e);
+            }
+        }, "yt-ensure-play").start();
+    }
+
     private static String open(Context ctx, String uri, String say) {
         try {
             LocalAdb.shell(ctx, "am start -a android.intent.action.VIEW -d "
