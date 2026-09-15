@@ -893,6 +893,25 @@ different fault:
   and the save no longer lower-cases the value, which would have turned `Kore`
   into `kore`.
 
+**The Live models cannot be the text backend.** Every one of them - 3.1 Flash
+Live, 3.8 Live - serves the Live API ONLY; none answers `generateContent`. So
+`talk.gemini_model` and the LLM backend are necessarily different models, and
+no amount of configuration makes one do both. The model id is a setting because
+these turn over fast and are not interchangeable: `gemini-3.8-live` is stable
+and Google's recommended default for low-latency voice, while
+`gemini-3.1-flash-live-preview` is a preview their own model list marks legacy
+("we recommend updating to Gemini 3.8 Live"). Measured, the difference is
+visible: on 3.1 the model began speaking a delegated answer ~6 s after the
+result and the retry fired first; on 3.8 it acknowledged in under a second and
+spoke the answer without the retry firing at all.
+
+**The UI names the backend and the voice IN USE, not the ones stored.** The
+talk button said "Talk to GPT-Live" through a Gemini session, and the settings
+box read `willow` while Kore was speaking. Both now come from the protocol
+object, and the voice hint says "Speaking now as: ..." beside the box, because
+a settings screen that names a voice nobody is using is worse than one that
+names none.
+
 The backend is read once when a session STARTS, never mid-call: `openAudio()`
 fixes the capture rate into the `AudioRecord` at that moment, so switching under
 a live session would send 16 kHz speech to a backend expecting 24 kHz.

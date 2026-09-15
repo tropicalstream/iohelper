@@ -57,7 +57,33 @@ interface Live {
         void onError(String message);
     }
 
+    /** The model id, for logs. */
     String name();
+
+    /** What to call this on SCREEN - the button, the status line, the prefix. */
+    String label();
+
+    /**
+     * The voice that will actually be used, which is not always the one stored.
+     *
+     * TALK_VOICE is shared between backends and each rejects the other's names,
+     * so the setting can say "willow" while Gemini is in fact speaking as Kore.
+     * The UI shows THIS, because a settings screen that names a voice nobody is
+     * using is worse than one that names none.
+     */
+    String voiceInUse(Context ctx);
+
+    /**
+     * How long to wait for the model to start speaking an answer before
+     * assuming it will not and prompting again.
+     *
+     * Five seconds was fine for GPT-Live and is too short for this Gemini
+     * preview: measured, it began speaking a delegated answer 6 s after the
+     * toolResponse, so the retry fired first and queued a second turn on top of
+     * the one already coming. Waiting longer costs nothing when the model is
+     * about to speak anyway.
+     */
+    int speechWaitMs();
 
     /** Null when configured; otherwise why it cannot start. */
     String unconfigured(Context ctx);
@@ -132,6 +158,42 @@ interface Live {
         }
 
         @Override
+        public String label() {
+            return "GPT-Live";
+        }
+
+        /**
+         * OpenAI's voices, verified against the API.
+         *
+         * Allow-listed for the SAME reason Gemini's are: TALK_VOICE is shared,
+         * so it can hold a name from the other backend, and a wrong one is not
+         * a warning - it closes the session mid-handshake. Measured in the
+         * other direction, Gemini answered an OpenAI name with 1007 and hung
+         * up. Symmetry here means the shared field can never kill a session
+         * whichever way it is set.
+         */
+        private static final String[] VOICES = {
+            "marin", "cedar", "quartz", "ripple", "vesper", "willow", "stone",
+            "gleam", "meridian", "bossa", "tempo", "beacon", "delta", "cinder",
+        };
+
+        @Override
+        public String voiceInUse(Context ctx) {
+            String v = Prefs.str(ctx, Prefs.TALK_VOICE, "").trim();
+            for (String known : VOICES) {
+                if (known.equalsIgnoreCase(v)) {
+                    return known;
+                }
+            }
+            return "marin";
+        }
+
+        @Override
+        public int speechWaitMs() {
+            return 5000;
+        }
+
+        @Override
         public String unconfigured(Context ctx) {
             return Prefs.str(ctx, Prefs.OPENAI_KEY, "").isEmpty()
                     ? "OpenAI API key not set" : null;
@@ -166,7 +228,7 @@ interface Live {
                     .put("model", "gpt-live-1")
                     .put("instructions", TalkService.VOICE_PROMPT)
                     .put("audio", new JSONObject().put("output", new JSONObject()
-                            .put("voice", Prefs.str(ctx, Prefs.TALK_VOICE, "marin"))))
+                            .put("voice", voiceInUse(ctx))))
                     .put("delegation", new JSONObject().put("type", "client"));
             return new JSONObject().put("type", "session.start")
                     .put("event_id", "start").put("session", session);
@@ -263,14 +325,34 @@ interface Live {
      */
     final class Gemini implements Live {
 
-        static final String MODEL = "gemini-3.1-flash-live-preview";
+        /** Stable, and Google's recommended default for low-latency voice. */
+        static final String MODEL = "gemini-3.8-live";
+
+        private String model(Context ctx) {
+            return Prefs.str(ctx, Prefs.TALK_MODEL, MODEL);
+        }
         private static final String HOST =
                 "wss://generativelanguage.googleapis.com/ws/"
                 + "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
         @Override
         public String name() {
-            return MODEL;
+            return MODEL;               // the default; the session logs the real one
+        }
+
+        @Override
+        public String label() {
+            return "Gemini Live";
+        }
+
+        @Override
+        public String voiceInUse(Context ctx) {
+            return voice(ctx);
+        }
+
+        @Override
+        public int speechWaitMs() {
+            return 12000;
         }
 
         @Override
@@ -330,7 +412,7 @@ interface Live {
                             .put("voiceName", voice(ctx))));
 
             JSONObject setup = new JSONObject()
-                    .put("model", "models/" + MODEL)
+                    .put("model", "models/" + model(ctx))
                     .put("generationConfig", new JSONObject()
                             .put("responseModalities", new JSONArray().put("AUDIO"))
                             .put("speechConfig", speech))

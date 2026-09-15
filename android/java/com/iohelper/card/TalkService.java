@@ -1137,13 +1137,13 @@ public class TalkService extends Service implements Live.Sink {
         }
         long sent = System.currentTimeMillis();
         commentary(delegationId, content, true);          // this one ends the call
-        if (spoke(sent, 5000)) {
+        if (spoke(sent, proto.speechWaitMs())) {
             return;
         }
         Log.i(TAG, "no speech after the delegation reply - repeating on the session channel");
         sent = System.currentTimeMillis();
         commentary(null, content, false);
-        if (spoke(sent, 5000)) {
+        if (spoke(sent, proto.speechWaitMs())) {
             return;
         }
         Log.w(TAG, "still silent - nudging once more");

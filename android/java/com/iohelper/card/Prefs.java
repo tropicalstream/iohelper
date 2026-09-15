@@ -44,6 +44,17 @@ public final class Prefs {
      */
     public static final String TALK_BACKEND = "talk.backend";
     /**
+     * The Gemini Live model id.
+     *
+     * A setting rather than a constant because these turn over fast and are
+     * not interchangeable: gemini-3.1-flash-live-preview is a PREVIEW that
+     * Google's own model list marks legacy ("we recommend updating to Gemini
+     * 3.8 Live"), and gemini-3.8-live is the stable default for low-latency
+     * voice. Every Live model is Live-API-ONLY - none of them serves
+     * generateContent - so this can never be the text backend's model.
+     */
+    public static final String TALK_MODEL = "talk.gemini_model";
+    /**
      * Voice for the talk button. Each backend has its own names - marin and
      * cedar are OpenAI's, Kore and friends are Gemini's - so a name set for one
      * is meaningless to the other, and Live.Gemini ignores an OpenAI default

@@ -22,7 +22,7 @@ import io.github.muntashirakon.adb.android.AdbMdns;
 public class MainActivity extends Activity {
 
     private TextView statusView;
-    /** Talk to GPT-Live: the phone's mic and speaker, the assistant's brain. */
+    /** Talk to the live model: the phone's mic and speaker, the assistant's brain. */
     private Button talkBtn;
     private MeterView meter;
     private TextView talkLine;
@@ -163,15 +163,26 @@ public class MainActivity extends Activity {
                 + "assistant, so answers and cards are identical - what differs "
                 + "is the voice, the latency and the bill. Changing this takes "
                 + "effect on the next session, not the one in progress."));
+        final EditText talkModel = field(live, "Gemini Live model",
+                Prefs.str(this, Prefs.TALK_MODEL, Live.Gemini.MODEL), false);
+        live.addView(hint("Live models turn over fast and are not "
+                + "interchangeable. " + Live.Gemini.MODEL + " is the stable "
+                + "default for low-latency voice; gemini-3.1-flash-live-preview "
+                + "is a preview Google's own model list marks legacy. Every Live "
+                + "model is Live-API-only, so none of them can serve as the text "
+                + "backend above - that stays a separate model."));
+
         final EditText talkVoice = field(live, "Voice",
                 Prefs.str(this, Prefs.TALK_VOICE, ""), false);
-        live.addView(hint("Each backend has its OWN voice names, and a name from one "
-                + "is rejected by the other - leave this empty for the current "
-                + "backend's default. Gemini: Kore, Puck, Charon, Fenrir, Aoede. "
-                + "OpenAI, verified against the API: marin, cedar, quartz, ripple, "
-                + "vesper, willow, stone, gleam, meridian, bossa, tempo, beacon, "
-                + "delta, cinder. Takes effect on the next session - a voice cannot "
-                + "be changed once one is running."));
+        live.addView(hint("Speaking now as: " + Live.of(this).voiceInUse(this)
+                + ". Each backend has its OWN voice names and rejects the other's, so "
+                + "a name saved for one is ignored by the other rather than sent and "
+                + "refused - which is why the box above and the voice in use can "
+                + "differ. Gemini: Kore, Puck, Charon, Fenrir, Aoede, Zephyr, Leda, "
+                + "Orus. OpenAI, verified against the API: marin, cedar, quartz, "
+                + "ripple, vesper, willow, stone, gleam, meridian, bossa, tempo, "
+                + "beacon, delta, cinder. Takes effect on the next session - a voice "
+                + "cannot be changed once one is running."));
 
         root.addView(heading2("Services"));
         LinearLayout keys = card(root);
@@ -304,6 +315,8 @@ public class MainActivity extends Activity {
                                 java.util.Locale.US));
                 Prefs.put(MainActivity.this, Prefs.TALK_VOICE,
                         talkVoice.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.TALK_MODEL,
+                        talkModel.getText().toString().trim());
                 Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
                 refresh();
             }
@@ -586,7 +599,7 @@ public class MainActivity extends Activity {
             stroke = Color.parseColor("#1E5C41");
             text = OK;
         } else if ("connecting".equals(st)) {
-            label = "…  Connecting to GPT-Live";
+            label = "…  Connecting to " + Live.of(this).label();
             fill = CARD;
             stroke = LINE;
             text = MUTED;
@@ -597,7 +610,9 @@ public class MainActivity extends Activity {
             stroke = Color.parseColor("#5C1E2A");
             text = Color.parseColor("#FF7A8A");
         } else {
-            label = "🎤  Talk to GPT-Live";
+            // Named from the SETTING, not hardcoded: the button said
+            // "GPT-Live" while a Gemini session was running.
+            label = "🎤  Talk to " + Live.of(this).label();
             fill = ACCENT;
             stroke = 0;
             text = Color.WHITE;
@@ -617,7 +632,7 @@ public class MainActivity extends Activity {
         if (live && (!heard.isEmpty() || !said.isEmpty())) {
             String line = (heard.isEmpty() ? "" : "You:  " + heard)
                     + (heard.isEmpty() || said.isEmpty() ? "" : "\n")
-                    + (said.isEmpty() ? "" : "GPT:  " + said);
+                    + (said.isEmpty() ? "" : Live.of(this).label() + ":  " + said);
             if (!line.equals(String.valueOf(talkLine.getText()))) {
                 talkLine.setText(line);
             }
