@@ -1167,6 +1167,24 @@ public final class Media {
      */
     public static String youtube(Context ctx, String query, String sort, String channel,
                                  String since) {
+        // "THE LATEST FROM X" IS A FEED QUESTION, wherever it is asked and
+        // whichever key is configured - so it is answered BEFORE either search
+        // backend rather than inside one of them. Sorting a keyword search by
+        // date only reorders what the words already matched, and a show's
+        // episodes are usually titled by topic, carrying the show's name
+        // nowhere. The Data API path had the same blind spot from the other
+        // direction: it searches a CHANNEL, so a show that lives as a playlist
+        // on a station's channel came back as the station's latest anything.
+        // A miss returns null and falls through to the ordinary search, so
+        // "the latest video about X" - a topic, not a show - still works.
+        String who = query == null || query.trim().isEmpty() ? channel : query;
+        if ("newest".equals(sort) && who != null && !who.trim().isEmpty()) {
+            String[] up = latestUpload(ctx, who.trim());
+            if (up != null) {
+                return openVideo(ctx, "https://www.youtube.com/watch?v=" + up[0],
+                        YT_GLYPH + " " + up[1]);
+            }
+        }
         String key = Prefs.str(ctx, Prefs.YOUTUBE_KEY, "");
         // NOT the Gemini key, tempting as it is. Both are Google API keys, but
         // the Data API refuses one outright - measured: HTTP 401 "API keys are
@@ -1197,16 +1215,6 @@ public final class Media {
                     // RELEVANT, which is how a 13-day-old episode came back as
                     // the newest. "CAI=" is YouTube's own sort-by-upload-date
                     // token, passed straight through by SerpApi's sp filter.
-                    // "The latest from X" is a FEED question, not a search
-                    // one - see latestUpload. Tried first, and only when the
-                    // wearer actually asked for the newest.
-                    if ("newest".equals(sort)) {
-                        String[] up = latestUpload(ctx, serp, q);
-                        if (up != null) {
-                            return openVideo(ctx, "https://www.youtube.com/watch?v=" + up[0],
-                                    YT_GLYPH + " " + up[1]);
-                        }
-                    }
                     String sp = "newest".equals(sort) ? "&sp=" + enc("CAI=") : "";
                     android.util.Log.i("iohelperMedia", "youtube via serpapi: q=\"" + q
                             + "\" sort=" + sort + (sp.isEmpty() ? "" : " (by date)"));
@@ -1346,38 +1354,15 @@ public final class Media {
      * programme it makes, so its channel feed answers "the latest KPFA" and
      * not "the latest Flashpoints".
      */
-    private static String[] latestUpload(Context ctx, String serp, String name) {
+    private static String[] latestUpload(Context ctx, String name) {
         try {
-            String resp = http("https://serpapi.com/search.json?engine=youtube"
-                    + "&search_query=" + enc(name) + "&api_key=" + enc(serp),
-                    "GET", null, null, null, 20000);
-            JSONObject o = new JSONObject(resp);
-            String feed = null;
-            String via = null;
-            JSONArray pls = o.optJSONArray("playlist_results");
-            for (int i = 0; pls != null && i < pls.length() && feed == null; i++) {
-                String link = pls.getJSONObject(i).optString("link", "");
-                int at = link.indexOf("list=");
-                if (at >= 0) {
-                    feed = "https://www.youtube.com/feeds/videos.xml?playlist_id="
-                            + link.substring(at + 5).split("[&#]")[0];
-                    via = "playlist " + pls.getJSONObject(i).optString("title", "");
-                }
-            }
-            JSONArray chs = o.optJSONArray("channel_results");
-            for (int i = 0; chs != null && i < chs.length() && feed == null; i++) {
-                String link = chs.getJSONObject(i).optString("link", "");
-                int at = link.indexOf("/channel/");
-                if (at >= 0) {
-                    feed = "https://www.youtube.com/feeds/videos.xml?channel_id="
-                            + link.substring(at + 9).split("[/?#]")[0];
-                    via = "channel " + chs.getJSONObject(i).optString("title", "");
-                }
-            }
-            if (feed == null) {
+            String[] found = feedFor(ctx, name);
+            if (found == null) {
                 android.util.Log.i("iohelperMedia", "no channel or playlist for " + name);
                 return null;
             }
+            String feed = found[0];
+            String via = found[1];
             String xml = http(feed, "GET", null, null, null, 20000);
             // Newest first, by definition of the feed - no sorting to get wrong.
             int e = xml.indexOf("<entry>");
@@ -1399,6 +1384,78 @@ public final class Media {
             android.util.Log.i("iohelperMedia", "latestUpload failed: " + ex);
             return null;
         }
+    }
+
+    /**
+     * The RSS feed for a named show, via whichever key is configured.
+     *
+     * The FEED is the answer either way; only the lookup differs. SerpApi is
+     * tried first because it needs no Google quota, and the Data API is a real
+     * fallback rather than a duplicate - a wearer may have one key and not the
+     * other. A playlist beats a channel in both, for the reason in
+     * latestUpload.
+     */
+    private static String[] feedFor(Context ctx, String name) {
+        String serp = Prefs.str(ctx, Prefs.SERPAPI_KEY, "");
+        if (!serp.isEmpty()) {
+            try {
+                JSONObject o = new JSONObject(http(
+                        "https://serpapi.com/search.json?engine=youtube&search_query="
+                        + enc(name) + "&api_key=" + enc(serp), "GET", null, null, null, 20000));
+                JSONArray pls = o.optJSONArray("playlist_results");
+                for (int i = 0; pls != null && i < pls.length(); i++) {
+                    String link = pls.getJSONObject(i).optString("link", "");
+                    int at = link.indexOf("list=");
+                    if (at >= 0) {
+                        return new String[]{
+                            "https://www.youtube.com/feeds/videos.xml?playlist_id="
+                                    + link.substring(at + 5).split("[&#]")[0],
+                            "playlist " + pls.getJSONObject(i).optString("title", ""), };
+                    }
+                }
+                JSONArray chs = o.optJSONArray("channel_results");
+                for (int i = 0; chs != null && i < chs.length(); i++) {
+                    String link = chs.getJSONObject(i).optString("link", "");
+                    int at = link.indexOf("/channel/");
+                    if (at >= 0) {
+                        return new String[]{
+                            "https://www.youtube.com/feeds/videos.xml?channel_id="
+                                    + link.substring(at + 9).split("[/?#]")[0],
+                            "channel " + chs.getJSONObject(i).optString("title", ""), };
+                    }
+                }
+            } catch (Exception e) {
+                android.util.Log.i("iohelperMedia", "serpapi lookup failed: " + e);
+            }
+        }
+        String key = Prefs.str(ctx, Prefs.YOUTUBE_KEY, "");
+        if (key.isEmpty()) {
+            return null;
+        }
+        try {
+            for (String kind : new String[]{"playlist", "channel"}) {
+                JSONArray items = new JSONObject(http(YT_SEARCH_URL
+                        + "?part=snippet&maxResults=1&type=" + kind + "&q=" + enc(name)
+                        + "&key=" + enc(key), "GET", null, null, null, 15000))
+                        .optJSONArray("items");
+                if (items == null || items.length() == 0) {
+                    continue;
+                }
+                JSONObject first = items.getJSONObject(0);
+                JSONObject id = first.optJSONObject("id");
+                String value = id == null ? null
+                        : id.optString("playlist".equals(kind) ? "playlistId" : "channelId", null);
+                if (value != null && !value.isEmpty()) {
+                    return new String[]{
+                        "https://www.youtube.com/feeds/videos.xml?"
+                                + ("playlist".equals(kind) ? "playlist_id=" : "channel_id=") + value,
+                        kind + " " + first.getJSONObject("snippet").optString("title", ""), };
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.i("iohelperMedia", "data api lookup failed: " + e);
+        }
+        return null;
     }
 
     private static String between(String s, String a, String b) {
