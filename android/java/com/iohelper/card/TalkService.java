@@ -654,6 +654,15 @@ public class TalkService extends Service implements Live.Sink {
      * voice and comes back on its own.
      */
     private void duck(boolean on) {
+        // NEVER duck on the way out. The speaker thread holds the music down
+        // for as long as the session lives, and it is still finishing its last
+        // pass while teardown runs - so a duck(true) could land AFTER
+        // teardown's duck(false) and leave the wearer's media quiet with
+        // nothing alive to restore it. Measured before this guard: volume 9
+        // before a session, 2 during, and still 2 long after hanging up.
+        if (on && !running) {
+            return;
+        }
         if (on == ducking) {
             return;
         }
@@ -692,7 +701,7 @@ public class TalkService extends Service implements Live.Sink {
                 }
             }
             ducking = on;
-            Log.i(TAG, on ? "  ducking other audio while it speaks" : "  audio back up");
+            Log.i(TAG, on ? "  ducked other audio for this session" : "  audio back up");
         } catch (Exception e) {
             Log.w(TAG, "duck: " + e);
         }
@@ -727,16 +736,27 @@ public class TalkService extends Service implements Live.Sink {
                     }
                     track.write(b, 0, b.length);
                 }
-                // Ducked by what is HEARD, not by what arrives: the stream keeps
-                // delivering frames between sentences and while the model is
-                // just listening, so "audio arrived" held the music down for the
-                // whole session. A voice in the frame is what counts, and a
-                // short hold after the last word keeps the level from pumping
-                // between sentences.
-                if (lastVoice > 0 && now - lastVoice <= UNDUCK_AFTER_MS) {
+                // DUCKED FOR THE WHOLE CONVERSATION, not just while the model
+                // is talking.
+                //
+                // This used to key on a voice being present in the OUTGOING
+                // audio, which meant nothing was ducked while the WEARER spoke
+                // - the model is silent then by definition. Open a session over
+                // a playing video and the result was two failures that look
+                // separate and are not: the video stayed at full volume, and
+                // the assistant could not hear a word, because the microphone
+                // runs in communication mode on the speakerphone and was
+                // listening to the video. It could not hear the wearer BECAUSE
+                // it had not ducked.
+                //
+                // The old comment argued against holding it down for the whole
+                // session, on the grounds that a request often STARTS music and
+                // the music would then play quietly under an open session. That
+                // is handled elsewhere now: the session hangs up once media
+                // starts, and the branch that does it lifts the duck first, so
+                // what the wearer asked for comes up to full volume.
+                if (!ducking) {
                     duck(true);
-                } else if (ducking) {
-                    duck(false);
                 }
             }
         } catch (Exception e) {
@@ -1014,6 +1034,12 @@ public class TalkService extends Service implements Live.Sink {
             // Let the model finish saying what started, then hang up.
             boolean started = Media.playing(line)
                     || (line.startsWith(Radio.GLYPH) && !line.contains("?"));
+            if (started) {
+                // What was asked for is playing: give it the volume back
+                // immediately rather than at teardown, so it does not start
+                // quiet under a session that is about to end anyway.
+                duck(false);
+            }
             if (started && Prefs.bool(this, Prefs.TALK_HANGUP_MEDIA, true)) {
                 // Room for BOTH halves: the model has speechWaitMs() to start
                 // and a further eight seconds to finish. A flat 12 s would be
