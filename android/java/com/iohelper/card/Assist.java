@@ -121,6 +121,23 @@ public final class Assist {
         return null;
     }
 
+    /**
+     * Press the keyboard's own "go" on a field, when there is no Send control
+     * to find by name. Best-effort: the result is deliberately ignored, since
+     * it is true whether or not anything was submitted.
+     */
+    private static void imeEnter(AccessibilityNodeInfo edit) {
+        if (edit == null || android.os.Build.VERSION.SDK_INT < 30) {
+            return;
+        }
+        try {
+            edit.performAction(
+                    AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());
+        } catch (Exception ignored) {
+            // A stale node; the next pass finds a fresh one.
+        }
+    }
+
     /** Single-quote for the phone's shell, closing around any embedded quote. */
     private static String shellQuote(String s) {
         return "'" + s.replace("'", "'\\''") + "'";
@@ -198,6 +215,23 @@ public final class Assist {
             if (edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
                 typed = true;
                 Log.i(TAG, "typed");
+                // SUBMIT IN THE SAME PASS, while the field is certainly in
+                // front of us and certainly holds the words.
+                //
+                // Typing and pressing Send used to be two passes about a
+                // second apart, and anything that took the foreground in
+                // between stranded the question typed-but-unsent: step() bails
+                // on its package check the moment Gemini is not the active
+                // window, so there was nothing left to press Send. That is
+                // reachable in normal use - a live voice session ending brings
+                // this app's own activity forward - and it looks exactly like
+                // the request being ignored, because the text is sitting there
+                // in the box.
+                //
+                // ACTION_IME_ENTER is the keyboard's own "go", so it needs no
+                // button to find by name; the Send hunt below stays as the
+                // fallback for anything that does not take it.
+                imeEnter(edit);
             }
             return;
         }
@@ -218,12 +252,20 @@ public final class Assist {
             if (now - askedAt < SEND_GRACE_MS) {
                 return;
             }
+            // KEEP TRYING, AND NEVER CLAIM SUCCESS FROM A RETURN VALUE. Both
+            // of these report true while doing nothing: ACTION_IME_ENTER was
+            // measured returning true on Gemini's field without submitting,
+            // and the run then read the PREVIOUS answer still on screen and
+            // reported it as this question's - the same 355-of-757 characters
+            // twice, for two different questions. Only the question appearing
+            // as a posted message means it went, which is what the branch
+            // above waits for.
             AccessibilityNodeInfo send = findByDesc(root, "send", 0);
-            if (send != null && clickThrough(send)) {
-                sent = true;
-                lastGrewAt = now;
-                Log.i(TAG, "sent");
+            if (send != null) {
+                clickThrough(send);
+                return;
             }
+            imeEnter(findEditable(root, 0));
             return;
         }
         String answer = answerOf(root);
