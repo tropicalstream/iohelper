@@ -260,8 +260,17 @@ public final class Cal {
         // Said explicitly, because a terse answer otherwise drops exactly the
         // part that makes it useful: "you have the panel and two protests" is
         // no help when you are deciding what to leave for.
-        String rule = "\nWhen listing these, name each event's TITLE with its day"
-                + " and start time; never give bare times without the titles.";
+        //
+        // And said for ONE event as much as for many. The older wording only
+        // covered "listing these", so a question with a single answer - "what
+        // is my next event" - fell outside it, and BOTH backends replied with
+        // the bare title: no time, no place, which is most of what was asked
+        // for. The room is there; a card carries a title line and a body, and
+        // a longer answer pages across several.
+        String rule = "\nWhen answering from these, ALWAYS give the event's START TIME"
+                + " together with its TITLE - for a single event just as much as for a"
+                + " list - and include the place when one is shown after \"@\". Never a"
+                + " bare time without the title, and never a title without its time.";
         SimpleDateFormat day = new SimpleDateFormat("EEE HH:mm", Locale.US);
         SimpleDateFormat hm = new SimpleDateFormat("HH:mm", Locale.US);
         StringBuilder sb = new StringBuilder("[Calendar " + span + ", "
