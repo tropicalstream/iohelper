@@ -827,6 +827,47 @@ Denying the permission is safe: the foreground-service location type is added
 only when the permission is actually granted, so the assistant still starts and
 simply falls back to the configured city.
 
+## Two live-voice backends, one pipeline (`Live`)
+
+The talk button opens Gemini Live by default (`gemini-3.1-flash-live-preview`)
+or GPT-Live if `talk.backend` says `openai`. They look the same to the wearer
+and agree on almost nothing underneath: different endpoints, different message
+shapes, the key in a header versus the query string, and a different MICROPHONE
+rate - Gemini records at 16 kHz and replies at 24 kHz, so capture and playback
+no longer share one number the way they did when there was only OpenAI.
+
+All of that lives in `Live`; nothing downstream knows which is connected. The
+microphone, the player, the cards, the turn bookkeeping and the hang-up-once-
+media-starts were debugged once and are not worth debugging again per vendor.
+
+**Delegation is what makes one pipeline possible.** GPT-Live has a first-class
+notion of handing a turn back to the client in prose. Gemini does not - it calls
+FUNCTIONS. Rather than teach Gemini the whole tool manifest and own two
+different things that can go wrong, it is given exactly ONE function,
+`ask_phone(request)`, which reproduces the same shape: the model asks in words,
+the phone answers in words. Both therefore arrive at `TalkService` as "the model
+wants the phone to answer this", and `AssistantService.respond` - the same
+phrase patterns, the same tools, the same cards - serves both mouths.
+
+Three things bite if you assume Gemini is OpenAI with different spelling:
+
+- **Transcription is off unless asked for.** The cards are built from the
+  transcripts, not from the audio, so without `inputAudioTranscription` and
+  `outputAudioTranscription` in the setup the glasses stay blank through a
+  perfectly good conversation.
+- **The capture rate belongs in the mime type.** `audio/pcm;rate=16000`;
+  without the rate the far end assumes its own and the speech is heard at the
+  wrong pitch, which reads as a broken microphone.
+- **Voice names do not transfer.** `marin` is OpenAI's, `Kore` is Gemini's, and
+  each rejects the other's. The settings field is shared, so `Live.Gemini`
+  ignores an OpenAI default rather than sending something it knows is wrong -
+  and the save no longer lower-cases the value, which would have turned `Kore`
+  into `kore`.
+
+The backend is read once when a session STARTS, never mid-call: `openAudio()`
+fixes the capture rate into the `AudioRecord` at that moment, so switching under
+a live session would send 16 kHz speech to a backend expecting 24 kHz.
+
 ## Two things playing at once (`Radio`, audio focus)
 
 Starting a podcast while a station was streaming left BOTH audible. The radio

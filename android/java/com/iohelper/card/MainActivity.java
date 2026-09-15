@@ -153,6 +153,26 @@ public class MainActivity extends Activity {
                 + "is the trigger (RayNeo answers too). alwayson = hands-free, currently "
                 + "broken in RayNeo's firmware."));
 
+        root.addView(heading2("Live voice"));
+        LinearLayout live = card(root);
+        final EditText talkBackend = field(live, "Backend (gemini | openai)",
+                Prefs.str(this, Prefs.TALK_BACKEND, "gemini"), false);
+        live.addView(hint("Which model the talk button opens. gemini = "
+                + Live.Gemini.MODEL + ", using the Gemini key below; openai = "
+                + "gpt-live-1, using the OpenAI key. Both delegate to the same "
+                + "assistant, so answers and cards are identical - what differs "
+                + "is the voice, the latency and the bill. Changing this takes "
+                + "effect on the next session, not the one in progress."));
+        final EditText talkVoice = field(live, "Voice",
+                Prefs.str(this, Prefs.TALK_VOICE, ""), false);
+        live.addView(hint("Each backend has its OWN voice names, and a name from one "
+                + "is rejected by the other - leave this empty for the current "
+                + "backend's default. Gemini: Kore, Puck, Charon, Fenrir, Aoede. "
+                + "OpenAI, verified against the API: marin, cedar, quartz, ripple, "
+                + "vesper, willow, stone, gleam, meridian, bossa, tempo, beacon, "
+                + "delta, cinder. Takes effect on the next session - a voice cannot "
+                + "be changed once one is running."));
+
         root.addView(heading2("Services"));
         LinearLayout keys = card(root);
         final EditText backend = field(keys, "LLM backend (groq | openai | gemini)",
@@ -165,12 +185,6 @@ public class MainActivity extends Activity {
                 Prefs.str(this, Prefs.GROQ_KEY, ""), true);
         final EditText groqModel = field(keys, "Groq model",
                 Prefs.str(this, Prefs.GROQ_MODEL, "openai/gpt-oss-120b"), false);
-        final EditText talkVoice = field(keys, "GPT-Live voice",
-                Prefs.str(this, Prefs.TALK_VOICE, "marin"), false);
-        keys.addView(hint("The voice the talk button speaks with. Verified against the "
-                + "API: marin (default), cedar, quartz, ripple, vesper, willow, stone, "
-                + "gleam, meridian, bossa, tempo, beacon, delta, cinder. Takes effect on "
-                + "the next session - a voice cannot be changed once one is running."));
         toggle(keys, "Let the model act (tools)", Prefs.TOOLS, true);
         keys.addView(hint("With tools on, a request the built-in phrases miss still "
                 + "gets done: the model calls the same timer, list, calendar, "
@@ -276,8 +290,6 @@ public class MainActivity extends Activity {
                         .trim().toLowerCase(java.util.Locale.ROOT));
                 Prefs.put(MainActivity.this, Prefs.OPENAI_KEY, openaiKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.OPENAI_MODEL, openaiModel.getText().toString().trim());
-                Prefs.put(MainActivity.this, Prefs.TALK_VOICE,
-                        talkVoice.getText().toString().trim().toLowerCase(java.util.Locale.ROOT));
                 Prefs.put(MainActivity.this, Prefs.GROQ_KEY, groqKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.GROQ_MODEL, groqModel.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.SERPAPI_KEY, serpKey.getText().toString().trim());
@@ -287,6 +299,11 @@ public class MainActivity extends Activity {
                 Prefs.put(MainActivity.this, Prefs.YOUTUBE_KEY, youtubeKey.getText().toString().trim());
                 Prefs.put(MainActivity.this, Prefs.RADIO_CALLSIGNS,
                         callSigns.getText().toString().trim());
+                Prefs.put(MainActivity.this, Prefs.TALK_BACKEND,
+                        talkBackend.getText().toString().trim().toLowerCase(
+                                java.util.Locale.US));
+                Prefs.put(MainActivity.this, Prefs.TALK_VOICE,
+                        talkVoice.getText().toString().trim());
                 Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
                 refresh();
             }

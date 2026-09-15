@@ -31,7 +31,24 @@ public final class Prefs {
     /** Let the model ACT through tools (timers, lists, calendar, music, maps)
      *  rather than only answer. Default on; off restores the plain Q&A path. */
     public static final String TOOLS = "llm.tools";
-    /** GPT-Live voice for the phone's talk button (marin, cedar, ...). */
+    /**
+     * Which live-voice backend the talk button opens: "gemini" (default) or
+     * "openai".
+     *
+     * They are not interchangeable behind the scenes even though they look the
+     * same to the wearer: different endpoints, different message shapes,
+     * different keys, and a different MICROPHONE rate (Gemini records at
+     * 16 kHz, GPT-Live at 24 kHz). {@link Live} owns those differences; this
+     * only picks one. Read once when a session starts, never mid-call, because
+     * the capture rate is fixed into the AudioRecord at that moment.
+     */
+    public static final String TALK_BACKEND = "talk.backend";
+    /**
+     * Voice for the talk button. Each backend has its own names - marin and
+     * cedar are OpenAI's, Kore and friends are Gemini's - so a name set for one
+     * is meaningless to the other, and Live.Gemini ignores an OpenAI default
+     * rather than sending something it would reject.
+     */
     public static final String TALK_VOICE = "talk.voice";
     /** Seconds of silence before a live voice session hangs up by itself -
      *  it bills per second while open. */

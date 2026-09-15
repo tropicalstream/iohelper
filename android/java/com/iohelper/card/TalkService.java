@@ -53,21 +53,37 @@ import java.util.concurrent.TimeUnit;
  * WHAT IT COSTS. The session bills per second while open, so it hangs up on
  * its own after a stretch of silence, and the screen shows it is live.
  *
- * PROTOCOL, measured live from a desktop before this was written: a
- * WebSocket to /v1/live/sessions, session.start -> session.started, raw
- * 24 kHz pcm16 mono base64 in input_audio.append and out in
- * output_audio.delta, transcripts as *_transcript.delta, delegation as
- * session.delegation.created answered with session.commentary.append.
+ * WHOSE VOICE. Two backends speak here - Gemini Live by default and GPT-Live
+ * if chosen - and this service knows nothing about either. {@link Live} owns
+ * the endpoint, the message shapes, the keys and the capture rate; what is
+ * left is one pipeline that was debugged once. The delegation is what makes
+ * that possible: GPT-Live hands back a turn in prose, and Gemini is given a
+ * single ask_phone() function that does the same, so both arrive here as
+ * "the model wants the phone to answer this".
  */
-public class TalkService extends Service {
+public class TalkService extends Service implements Live.Sink {
 
     private static final String TAG = "iohelperTalk";
-    static final String LIVE_URL = "wss://api.openai.com/v1/live/sessions";
     static final String CHANNEL = "talk";
     static final int NOTE_ID = 5;
+    /**
+     * Fallback rate, used only for sizing the spectrum bins before a session
+     * exists. The REAL rates come from the protocol: GPT-Live records at
+     * 24 kHz, Gemini at 16 kHz, and both send 24 kHz back - so capture and
+     * playback no longer share one number.
+     */
     static final int RATE = 24000;
-    /** 40 ms of 24 kHz pcm16 mono - one input_audio.append. */
+    /**
+     * 40 ms of pcm16 mono at 24 kHz. Sized for the higher rate so the buffer
+     * holds a 40 ms frame at either: at 16 kHz a frame is 1280 bytes, and
+     * reading the smaller count from the larger buffer is fine, whereas the
+     * reverse would truncate.
+     */
     static final int CHUNK = 1920;
+    /** Bytes in one 40 ms frame at the CURRENT capture rate. */
+    private int frameBytes() {
+        return proto.micRate() / 25 * 2;
+    }
     static final int BANDS = 8;
     static final int DEFAULT_IDLE_S = 120;
 
@@ -129,6 +145,13 @@ public class TalkService extends Service {
     }
 
     // ---- session ---------------------------------------------------------------
+    /**
+     * Whose protocol this session speaks. Chosen once when the session starts,
+     * never mid-call: the capture rate is baked into the AudioRecord at that
+     * moment, so switching under a live session would send 16 kHz speech to a
+     * backend expecting 24 kHz.
+     */
+    private volatile Live proto = new Live.Gemini();
     private volatile boolean running;
     /** While the test hook feeds synthesised speech, the mic stays quiet. */
     private volatile boolean muted;
@@ -283,7 +306,7 @@ public class TalkService extends Service {
             return;
         }
         // NEVER on the caller's thread: every caller is the UI (the button, and
-        // the TALK broadcast via onNewIntent), and hangUp writes session.close
+        // the TALK broadcast via onNewIntent), and hangUp closes the session
         // to the socket. On the main thread that throws
         // NetworkOnMainThreadException, which was swallowed by hangUp's catch -
         // so the polite close never left the phone, the server kept the session
@@ -347,9 +370,13 @@ public class TalkService extends Service {
     }
 
     private void session() {
-        String key = Prefs.str(this, Prefs.OPENAI_KEY, "");
-        if (key.isEmpty()) {
-            fail("OpenAI API key not set");
+        // Pinned for the whole session: openAudio() bakes the capture rate into
+        // the AudioRecord, so the backend must not change under a live call.
+        proto = Live.of(this);
+        Log.i(TAG, "live backend: " + proto.name());
+        String missing = proto.unconfigured(this);
+        if (missing != null) {
+            fail(missing);
             return;
         }
         try {
@@ -360,10 +387,8 @@ public class TalkService extends Service {
         }
         final CountDownLatch started = new CountDownLatch(1);
         try {
-            Map<String, String> h = new HashMap<>();
-            h.put("Authorization", "Bearer " + key);
-            h.put("User-Agent", "iohelper");
-            Ws sock = Ws.connect(URI.create(LIVE_URL), h, new Ws.Listener() {
+            Ws sock = Ws.connect(URI.create(proto.url(this)), proto.headers(this),
+                    new Ws.Listener() {
                 @Override
                 public void onText(String text) {
                     onEvent(text, started);
@@ -397,16 +422,9 @@ public class TalkService extends Service {
                 }
                 ws = sock;
             }
-            JSONObject session = new JSONObject()
-                    .put("model", "gpt-live-1")
-                    .put("instructions", VOICE_PROMPT)
-                    .put("audio", new JSONObject().put("output", new JSONObject()
-                            .put("voice", Prefs.str(this, Prefs.TALK_VOICE, "marin"))))
-                    .put("delegation", new JSONObject().put("type", "client"));
-            send(new JSONObject().put("type", "session.start").put("event_id", "start")
-                    .put("session", session));
+            send(proto.setup(this));
             if (!started.await(15, TimeUnit.SECONDS)) {
-                fail("no session.started");
+                fail("no reply from " + proto.name());
                 return;
             }
         } catch (Exception e) {
@@ -481,21 +499,25 @@ public class TalkService extends Service {
             Log.w(TAG, "call volume: " + e);
         }
         route(am, true);
-        int inMin = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO,
+        int micRate = proto.micRate();
+        int playRate = proto.playRate();
+        Log.i(TAG, "audio: mic " + micRate + " Hz, play " + playRate + " Hz ("
+                + proto.name() + ")");
+        int inMin = AudioRecord.getMinBufferSize(micRate, AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
-        rec = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, RATE,
+        rec = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, micRate,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
                 Math.max(inMin, CHUNK * 6));
         if (rec.getState() != AudioRecord.STATE_INITIALIZED) {
-            throw new IllegalStateException("microphone unavailable at " + RATE + " Hz");
+            throw new IllegalStateException("microphone unavailable at " + micRate + " Hz");
         }
-        int outMin = AudioTrack.getMinBufferSize(RATE, AudioFormat.CHANNEL_OUT_MONO,
+        int outMin = AudioTrack.getMinBufferSize(playRate, AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
         track = new AudioTrack(
                 new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
-                new AudioFormat.Builder().setSampleRate(RATE)
+                new AudioFormat.Builder().setSampleRate(playRate)
                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build(),
                 Math.max(outMin, CHUNK * 8), AudioTrack.MODE_STREAM,
@@ -591,10 +613,11 @@ public class TalkService extends Service {
 
     private void capture() {
         byte[] buf = new byte[CHUNK];
+        final int frame = frameBytes();
         try {
             rec.startRecording();
             while (running) {
-                int n = rec.read(buf, 0, CHUNK);
+                int n = rec.read(buf, 0, frame);
                 if (n <= 0) {
                     continue;
                 }
@@ -616,9 +639,8 @@ public class TalkService extends Service {
     }
 
     private void sendAudio(byte[] buf, int n) throws Exception {
-        // Built by hand: 25 of these a second, and org.json is not free.
         String b64 = Base64.encodeToString(buf, 0, n, Base64.NO_WRAP);
-        ws.send("{\"type\":\"session.input_audio.append\",\"audio\":\"" + b64 + "\"}");
+        ws.send(proto.audioFrame(b64));
     }
 
     /**
@@ -733,6 +755,14 @@ public class TalkService extends Service {
             java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
 
     // ---- events ---------------------------------------------------------------
+    /**
+     * Raw frame in, normalised event out.
+     *
+     * The protocol object owns every difference between the two backends, so
+     * what follows is the SAME handling either way - which is the point: the
+     * cards, the turn bookkeeping and the hang-up were debugged once and should
+     * not be debugged again per vendor.
+     */
     private void onEvent(String text, CountDownLatch started) {
         JSONObject ev;
         try {
@@ -740,123 +770,132 @@ public class TalkService extends Service {
         } catch (Exception e) {
             return;
         }
+        // What ARRIVED, logged once per kind. Neither protocol is documented
+        // well enough to assume; when a card fails to appear it matters whether
+        // the transcript events came at all or only the audio did. OpenAI names
+        // the kind in "type", Gemini in the single top-level key.
         String seen = ev.optString("type", "");
+        if (seen.isEmpty() && ev.keys().hasNext()) {
+            seen = ev.keys().next();
+        }
         if (!seen.isEmpty() && seenTypes.add(seen)) {
             Log.i(TAG, "  event seen: " + seen);
         }
-        String t = ev.optString("type", "");
-        switch (t) {
-            case "session.started":
-                started.countDown();
-                break;
-            case "session.output_audio.delta": {
-                byte[] pcm = Base64.decode(ev.optString("delta", ""), Base64.DEFAULT);
-                if (pcm.length > 0) {
-                    playQ.offer(pcm);
-                }
-                lastActivity = System.currentTimeMillis();
-                spokeAt = lastActivity;
-                assistantActive = true;
-                // DELIBERATELY does not reschedule the card flush. This stream
-                // does not stop between utterances - it keeps sending audio for
-                // as long as the session is open - so treating it as "the model
-                // is still talking" postponed the card until the wearer hung up,
-                // and the flush then found the session gone. Only WORDS mean the
-                // model is still answering, so only the transcript reschedules.
-                break;
+        startedLatch = started;
+        proto.parse(ev, this);
+    }
+
+    /** Set per session so the Sink can release the connect wait. */
+    private volatile CountDownLatch startedLatch;
+
+    @Override
+    public void onStarted() {
+        CountDownLatch l = startedLatch;
+        if (l != null) {
+            l.countDown();
+        }
+    }
+
+    @Override
+    public void onAudio(byte[] pcm) {
+        if (pcm != null && pcm.length > 0) {
+            playQ.offer(pcm);
+        }
+        lastActivity = System.currentTimeMillis();
+        spokeAt = lastActivity;
+        assistantActive = true;
+        // DELIBERATELY does not reschedule the card flush. GPT-Live's audio
+        // stream does not stop between utterances - it keeps sending for as
+        // long as the session is open - so treating it as "still talking"
+        // postponed the card until the wearer hung up, and the flush then
+        // found the session gone. Only WORDS mean the model is still
+        // answering, so only the transcript reschedules.
+    }
+
+    @Override
+    public void onHeard(String d) {
+        synchronized (pendingUser) {
+            // The user speaking after the assistant was active is the start of
+            // a fresh turn: clear the per-turn flags so the next answer,
+            // delegated or direct, is handled from scratch.
+            if (assistantActive) {
+                assistantActive = false;
+                delegatedThisTurn = false;
+                turnCarded = false;
+                cardedText = "";
             }
-            case "session.input_transcript.delta": {
-                String d = ev.optString("delta", "");
-                synchronized (pendingUser) {
-                    // The user speaking after the assistant was active is the
-                    // start of a fresh turn: clear the per-turn flags so the
-                    // next answer, delegated or direct, is handled from scratch.
-                    if (assistantActive) {
-                        assistantActive = false;
-                        delegatedThisTurn = false;
-                        turnCarded = false;
-                        cardedText = "";
-                    }
-                    // Set directly here, not via the transcript-flush below, so
-                    // the show-loop's "a user has spoken" gate does not depend on
-                    // an output transcript ever arriving.
-                    sawUser = true;
-                    pendingUser.append(d);
-                    lastHeard = pendingUser.toString().trim();
-                }
-                lastActivity = System.currentTimeMillis();
-                break;
+            // Set directly here, not via the transcript flush below, so the
+            // show-loop's "a user has spoken" gate does not depend on an output
+            // transcript ever arriving.
+            sawUser = true;
+            pendingUser.append(d);
+            lastHeard = pendingUser.toString().trim();
+        }
+        lastActivity = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onSaid(String d) {
+        synchronized (pendingUser) {
+            // The model is speaking, so the user's turn is over: keep it as the
+            // last question in case a delegation follows the acknowledgement
+            // rather than preceding it.
+            if (pendingUser.length() > 0) {
+                remember("Assistant", saying);       // the turn just ending
+                remember("User", pendingUser);
+                lastUser = pendingUser.toString();
+                lastUserAt = System.currentTimeMillis();
+                pendingUser.setLength(0);
+                saying.setLength(0);
             }
-            case "session.output_transcript.delta": {
-                String d = ev.optString("delta", "");
-                synchronized (pendingUser) {
-                    // The model is speaking, so the user's turn is over: keep
-                    // it as the last question in case a delegation follows the
-                    // acknowledgement rather than preceding it.
-                    if (pendingUser.length() > 0) {
-                        remember("Assistant", saying);   // the turn just ending
-                        remember("User", pendingUser);
-                        lastUser = pendingUser.toString();
-                        lastUserAt = System.currentTimeMillis();
-                        pendingUser.setLength(0);
-                        saying.setLength(0);
-                    }
-                    // Fragments arrive without the space between sentences
-                    // ("Ready.One sec"), so put it back where one belongs.
-                    int last = saying.length() - 1;
-                    if (last >= 0 && !d.isEmpty() && !Character.isWhitespace(d.charAt(0))
-                            && ".!?".indexOf(saying.charAt(last)) >= 0) {
-                        saying.append(' ');
-                    }
-                    saying.append(d);
-                    // Kept long enough to hold a full spoken answer, since the
-                    // show-loop cards this whole buffer for a direct (non-
-                    // delegated) reply; the card paginator trims to what fits.
-                    if (saying.length() > 1500) {
-                        saying.delete(0, saying.length() - 1500);
-                    }
-                    lastSaid = saying.toString().trim();
-                }
-                lastActivity = System.currentTimeMillis();
-                assistantActive = true;
-                scheduleCard();
-                break;
+            // Fragments arrive without the space between sentences
+            // ("Ready.One sec"), so put it back where one belongs.
+            int last = saying.length() - 1;
+            if (last >= 0 && !d.isEmpty() && !Character.isWhitespace(d.charAt(0))
+                    && ".!?".indexOf(saying.charAt(last)) >= 0) {
+                saying.append(' ');
             }
-            case "session.delegation.created": {
-                JSONObject d = ev.optJSONObject("delegation");
-                final String id = d == null ? null : d.optString("id", null);
-                lastActivity = System.currentTimeMillis();
-                // This turn cards itself from delegate(); keep the show-loop off it.
-                delegatedThisTurn = true;
-                new Thread(() -> delegate(id), "talk-delegate").start();
-                break;
+            saying.append(d);
+            // Kept long enough to hold a full spoken answer, since the
+            // show-loop cards this whole buffer for a direct (non-delegated)
+            // reply; the card paginator trims to what fits.
+            if (saying.length() > 1500) {
+                saying.delete(0, saying.length() - 1500);
             }
-            case "session.closed": {
-                JSONObject s = ev.optJSONObject("session");
-                JSONObject usage = s == null ? null : s.optJSONObject("usage");
-                Log.i(TAG, "session closed: " + ev.optString("reason", "?")
-                        + (usage == null ? "" : " after " + usage.optDouble("seconds", 0) + "s"));
-                // Counted down even when the hang-up already cleared `running`:
-                // this is exactly what that hang-up is waiting for.
-                closed.countDown();
-                if (running) {
-                    running = false;
-                    state = "off";
-                    stopSelf();
-                }
-                break;
-            }
-            case "error": {
-                JSONObject err = ev.optJSONObject("error");
-                String msg = err == null ? text : err.optString("message", text);
-                Log.w(TAG, "live error: " + (msg.length() > 200 ? msg.substring(0, 200) : msg));
-                if (started.getCount() > 0) {
-                    fail("session: " + msg);
-                }
-                break;
-            }
-            default:
-                break;
+            lastSaid = saying.toString().trim();
+        }
+        lastActivity = System.currentTimeMillis();
+        assistantActive = true;
+        scheduleCard();
+    }
+
+    @Override
+    public void onDelegate(final String id, final String request) {
+        lastActivity = System.currentTimeMillis();
+        // This turn cards itself from delegate(); keep the show-loop off it.
+        delegatedThisTurn = true;
+        new Thread(() -> delegate(id, request), "talk-delegate").start();
+    }
+
+    @Override
+    public void onClosed(String reason) {
+        Log.i(TAG, "session closed: " + reason);
+        // Counted down even when the hang-up already cleared `running`: this is
+        // exactly what that hang-up is waiting for.
+        closed.countDown();
+        if (running) {
+            running = false;
+            state = "off";
+            stopSelf();
+        }
+    }
+
+    @Override
+    public void onError(String msg) {
+        Log.w(TAG, "live error: " + (msg.length() > 200 ? msg.substring(0, 200) : msg));
+        CountDownLatch l = startedLatch;
+        if (l != null && l.getCount() > 0) {
+            fail("session: " + msg);
         }
     }
 
@@ -903,7 +942,7 @@ public class TalkService extends Service {
         return q.trim();
     }
 
-    private void delegate(String id) {
+    private void delegate(String id, String request) {
         inFlight.incrementAndGet();                  // before takeQuestion: it sleeps too
         final long began = System.currentTimeMillis();
         // Say SOMETHING if the model didn't. It is meant to acknowledge as it
@@ -926,7 +965,10 @@ public class TalkService extends Service {
         patience.setDaemon(true);
         patience.start();
         try {
-            String q = takeQuestion();
+            // Gemini names the request in the function call; GPT-Live hands
+            // over the turn and leaves the words in the transcript.
+            String q = request != null && !request.trim().isEmpty()
+                    ? request.trim() : takeQuestion();
             if (q.isEmpty()) {
                 deliver(id, "I didn't catch what you asked.");
                 return;
@@ -937,7 +979,7 @@ public class TalkService extends Service {
             // would just be held up for a second by the collection.
             String said = AssistantService.usesSaid(this, q) ? saidSoFar() : "";
             if (!said.isEmpty()) {
-                Log.i(TAG, "  gpt-live said: " + said);
+                Log.i(TAG, "  the model said: " + said);
             }
             AssistantService.Reply r = AssistantService.respond(this, q, said, recent());
             if (r.error != null) {
@@ -1046,10 +1088,13 @@ public class TalkService extends Service {
 
     private boolean commentary(String delegationId, String content) {
         try {
-            JSONObject o = new JSONObject().put("type", "session.commentary.append")
-                    .put("event_id", "c" + (++seq))
-                    .put("delegation_id", delegationId == null ? JSONObject.NULL : delegationId)
-                    .put("content", content);
+            JSONObject o = proto.answer(delegationId, content);
+            if (o == null) {
+                // Gemini drops an answer that names no call, so there is
+                // nothing useful to send and saying otherwise would be a lie.
+                Log.i(TAG, "no reply channel for this delegation");
+                return false;
+            }
             send(o);
             return true;
         } catch (Exception e) {
@@ -1128,7 +1173,7 @@ public class TalkService extends Service {
         String card = Cards.decorate(Cards.sanitize(answer));
         if (!card.isEmpty()) {
             Cards.postSequence(this, Cards.title(this), card, "answer");
-            Log.i(TAG, "  showed gpt-live's own answer (" + answer.length() + " chars)");
+            Log.i(TAG, "  showed the model's own answer (" + answer.length() + " chars)");
         }
     }
 
@@ -1183,13 +1228,18 @@ public class TalkService extends Service {
             state = "off";
         }
         try {
-            send(new JSONObject().put("type", "session.close").put("event_id", "close"));
+            JSONObject bye = proto.bye();
+            if (bye != null) {
+                send(bye);
+            }
             // WAIT for the confirmation rather than guessing at it: measured,
-            // the server takes a couple of seconds to drain and reply, and the
+            // GPT-Live takes a couple of seconds to drain and reply, and the
             // old fixed 600 ms tore the socket down first - so the close was
-            // sent but never acknowledged, and the final usage went unread.
-            if (!closed.await(4, TimeUnit.SECONDS)) {
-                Log.w(TAG, "no session.closed - closing anyway");
+            // sent but never acknowledged and the final usage went unread.
+            // Gemini has no close frame to acknowledge, so waiting there would
+            // be four seconds of nothing on every hang-up.
+            if (proto.acknowledgesClose() && !closed.await(4, TimeUnit.SECONDS)) {
+                Log.w(TAG, "no close acknowledgement - closing anyway");
             }
         } catch (Exception e) {
             Log.w(TAG, "close: " + e);
