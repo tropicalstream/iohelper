@@ -1197,6 +1197,16 @@ public final class Media {
                     // RELEVANT, which is how a 13-day-old episode came back as
                     // the newest. "CAI=" is YouTube's own sort-by-upload-date
                     // token, passed straight through by SerpApi's sp filter.
+                    // "The latest from X" is a FEED question, not a search
+                    // one - see latestUpload. Tried first, and only when the
+                    // wearer actually asked for the newest.
+                    if ("newest".equals(sort)) {
+                        String[] up = latestUpload(ctx, serp, q);
+                        if (up != null) {
+                            return openVideo(ctx, "https://www.youtube.com/watch?v=" + up[0],
+                                    YT_GLYPH + " " + up[1]);
+                        }
+                    }
                     String sp = "newest".equals(sort) ? "&sp=" + enc("CAI=") : "";
                     android.util.Log.i("iohelperMedia", "youtube via serpapi: q=\"" + q
                             + "\" sort=" + sort + (sp.isEmpty() ? "" : " (by date)"));
@@ -1316,6 +1326,93 @@ public final class Media {
             return PC_GLYPH + " " + (ep == null ? out.substring(2) : ep);
         }
         return pocketcasts(ctx, query);
+    }
+
+    /**
+     * The newest upload from a named channel or show, without a Data API key.
+     *
+     * A KEYWORD SEARCH CANNOT DO THIS. KPFA's Flashpoints episodes are titled
+     * by topic - "Richard Montoya Joins Us from Los Angeles" - and carry
+     * neither "KPFA" nor "Flashpoints" in the title, so no text search reaches
+     * them however it is sorted. Sorting by upload date only reorders what the
+     * words already matched, which is why "the latest Flashpoints" kept coming
+     * back thirteen days old while the show published daily.
+     *
+     * YouTube's own RSS feeds answer this exactly: one per channel and one per
+     * playlist, always newest-first, no key and no quota. The only thing
+     * missing is the ID, which SerpApi's search supplies. A PLAYLIST is tried
+     * before the channel because a show is often a playlist on a station's
+     * channel rather than a channel of its own - KPFA Radio uploads every
+     * programme it makes, so its channel feed answers "the latest KPFA" and
+     * not "the latest Flashpoints".
+     */
+    private static String[] latestUpload(Context ctx, String serp, String name) {
+        try {
+            String resp = http("https://serpapi.com/search.json?engine=youtube"
+                    + "&search_query=" + enc(name) + "&api_key=" + enc(serp),
+                    "GET", null, null, null, 20000);
+            JSONObject o = new JSONObject(resp);
+            String feed = null;
+            String via = null;
+            JSONArray pls = o.optJSONArray("playlist_results");
+            for (int i = 0; pls != null && i < pls.length() && feed == null; i++) {
+                String link = pls.getJSONObject(i).optString("link", "");
+                int at = link.indexOf("list=");
+                if (at >= 0) {
+                    feed = "https://www.youtube.com/feeds/videos.xml?playlist_id="
+                            + link.substring(at + 5).split("[&#]")[0];
+                    via = "playlist " + pls.getJSONObject(i).optString("title", "");
+                }
+            }
+            JSONArray chs = o.optJSONArray("channel_results");
+            for (int i = 0; chs != null && i < chs.length() && feed == null; i++) {
+                String link = chs.getJSONObject(i).optString("link", "");
+                int at = link.indexOf("/channel/");
+                if (at >= 0) {
+                    feed = "https://www.youtube.com/feeds/videos.xml?channel_id="
+                            + link.substring(at + 9).split("[/?#]")[0];
+                    via = "channel " + chs.getJSONObject(i).optString("title", "");
+                }
+            }
+            if (feed == null) {
+                android.util.Log.i("iohelperMedia", "no channel or playlist for " + name);
+                return null;
+            }
+            String xml = http(feed, "GET", null, null, null, 20000);
+            // Newest first, by definition of the feed - no sorting to get wrong.
+            int e = xml.indexOf("<entry>");
+            if (e < 0) {
+                return null;
+            }
+            String entry = xml.substring(e, Math.min(xml.length(), e + 2000));
+            String id = between(entry, "<yt:videoId>", "</yt:videoId>");
+            String title = between(entry, "<title>", "</title>");
+            String when = between(entry, "<published>", "</published>");
+            if (id == null || title == null) {
+                return null;
+            }
+            android.util.Log.i("iohelperMedia", "newest via " + via + ": "
+                    + (when == null ? "?" : when.substring(0, Math.min(10, when.length())))
+                    + " - " + title);
+            return new String[]{id, unescape(title)};
+        } catch (Exception ex) {
+            android.util.Log.i("iohelperMedia", "latestUpload failed: " + ex);
+            return null;
+        }
+    }
+
+    private static String between(String s, String a, String b) {
+        int i = s.indexOf(a);
+        if (i < 0) {
+            return null;
+        }
+        int j = s.indexOf(b, i + a.length());
+        return j < 0 ? null : s.substring(i + a.length(), j);
+    }
+
+    private static String unescape(String s) {
+        return s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&quot;", "\"").replace("&#39;", "'");
     }
 
     /**
