@@ -48,6 +48,8 @@ public class MainActivity extends Activity {
     private Button npMiddle;
     /** The saved-station rows, rebuilt whenever the list changes. */
     private LinearLayout stationRows;
+    /** Scan / stop scanning - one button, relabelled by state. */
+    private Button scanBtn;
     /**
      * Reads what is playing every few seconds while the screen is up. Off the
      * main thread: Radio.current() is instant, but a phone track is read over
@@ -1120,7 +1122,22 @@ public class MainActivity extends Activity {
         return b;
     }
 
+    /** The scan button's label and colour follow the scan, not the other way round. */
+    private void refreshScanButton(boolean scanning) {
+        if (scanBtn == null) {
+            return;
+        }
+        String want = scanning ? "\u25a0  Stop scanning \u00b7 keep this station"
+                               : "\u25b6  Scan stations";
+        if (!want.equals(String.valueOf(scanBtn.getText()))) {
+            scanBtn.setText(want);
+            scanBtn.setTextColor(scanning ? FG : Color.WHITE);
+            scanBtn.setBackground(scanning ? surface(INPUT, ACCENT, 12) : surface(ACCENT, 0, 12));
+        }
+    }
+
     private void showNowPlaying(String station, boolean scanning, Media.Track track) {
+        refreshScanButton(scanning);
         if (npTitle == null) {
             return;
         }
@@ -1128,9 +1145,11 @@ public class MainActivity extends Activity {
             npTitle.setText(Radio.GLYPH + "  " + station);
             npDetail.setText(scanning ? "Scanning saved stations \u00b7 tap \u23ef to stay here"
                     : "Live radio \u00b7 \u23ee \u23ed step through saved stations");
-            npMiddle.setText(scanning ? "\u23f8\ufe0e" : "\u23ef\ufe0e");
+            // Heavy bars, not U+23F8: the emoji font here ignores the text
+            // selector on that one and drew an orange emoji mid-row.
+            npMiddle.setText(scanning ? "\u275a\u275a" : "\u23ef\ufe0e");
         } else if (track != null && track.title != null && !track.title.isEmpty()) {
-            npTitle.setText((track.playing ? Media.glyphFor(track.pkg) : "\u23f8\ufe0e") + "  "
+            npTitle.setText((track.playing ? Media.glyphFor(track.pkg) : "\u275a\u275a") + "  "
                     + track.title);
             npDetail.setText(track.artist == null || track.artist.isEmpty()
                     ? (track.playing ? "Playing" : "Paused") : track.artist);
@@ -1214,11 +1233,20 @@ public class MainActivity extends Activity {
             }, "add-station").start();
         });
 
-        Button scan = button(panel, "\u25b6  Scan stations");
-        scan.setOnClickListener(v -> new Thread(() -> {
-            Radio.scan(MainActivity.this);
+        // ONE button that reads as what it will DO. While a scan is running
+        // it says so and stops it - "Scan stations" sitting there unchanged
+        // through a scan looked like the tap had not registered, and gave no
+        // way back short of "stop", which ends the radio altogether.
+        scanBtn = button(panel, "\u25b6  Scan stations");
+        scanBtn.setOnClickListener(v -> new Thread(() -> {
+            if (Radio.scanning()) {
+                Radio.keep(MainActivity.this);       // stay on this one
+            } else {
+                Radio.scan(MainActivity.this);
+            }
             ui.post(() -> { ui.removeCallbacks(mediaTick); ui.post(mediaTick); });
         }, "scan").start());
+        refreshScanButton(false);
         panel.addView(hint("Or say it: \"scan stations\" plays each saved station for about "
                 + "twelve seconds and moves on - \"keep this\" stays, \"next station\" "
                 + "and \"previous station\" step, \"stop\" ends it. Names are resolved "
