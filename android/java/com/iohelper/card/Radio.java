@@ -418,7 +418,7 @@ public final class Radio {
      */
     private static synchronized String open(final Context app, final String url,
                                             final String name) {
-        stopPhone();
+        release();
         final int mine = ++generation;
         try {
             MediaPlayer mp = new MediaPlayer();
@@ -500,6 +500,13 @@ public final class Radio {
 
     /** Stop phone playback. Safe to call when nothing is playing. */
     public static synchronized boolean stopPhone() {
+        cancelScan();                              // a stop is a stop, scan included
+        return release();
+    }
+
+    /** Tear the player down. The scan, if any, is left running - it is what
+     *  calls this between stations. */
+    private static synchronized boolean release() {
         generation++;                              // any pending reconnect stands down
         boolean was = player != null;
         if (player != null) {
@@ -525,6 +532,195 @@ public final class Radio {
         }
         nowPlaying = null;
         return was;
+    }
+
+    // ---- presets & scan ----------------------------------------------------
+    // A few stations the wearer keeps, and a car-radio scan through them:
+    // "scan stations" starts at the next one and moves on every dozen seconds
+    // until "keep this" or "stop"; "next station" and "previous station" step
+    // by hand. Kept as {name, url} resolved at the time they were added, so a
+    // scan does not spend a directory lookup per station - and falls back to a
+    // fresh lookup if a stored stream has gone stale.
+
+    private static final long SCAN_DWELL_MS = 12_000;
+    /** Stations visited on this scan; the first one is held for longer. */
+    private static volatile int hops;
+    private static volatile int scanIndex = -1;
+    private static volatile boolean scanning;
+    private static final android.os.Handler SCAN =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private static Runnable scanTick;
+
+    /** The saved stations, oldest first: each is {name, url}. */
+    public static java.util.List<String[]> presets(Context ctx) {
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        try {
+            JSONArray a = new JSONArray(Prefs.str(ctx, Prefs.RADIO_PRESETS, "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.optJSONObject(i);
+                if (o != null && !o.optString("name", "").isEmpty()) {
+                    out.add(new String[]{o.optString("name"), o.optString("url", "")});
+                }
+            }
+        } catch (Exception ignored) {
+            // A hand-edited pref that is not JSON: treat as empty, not fatal.
+        }
+        return out;
+    }
+
+    private static void savePresets(Context ctx, java.util.List<String[]> list) {
+        JSONArray a = new JSONArray();
+        try {
+            for (String[] p : list) {
+                a.put(new JSONObject().put("name", p[0]).put("url", p[1]));
+            }
+        } catch (Exception ignored) {
+        }
+        Prefs.put(ctx, Prefs.RADIO_PRESETS, a.toString());
+    }
+
+    /**
+     * Save a station by the name the wearer typed, resolved through the
+     * directory now so the scan never has to. Returns what to tell them.
+     */
+    public static String addPreset(Context ctx, String query) {
+        String[] hit = find(ctx, query);
+        if (hit == null) {
+            return "No station found for \"" + query + "\".";
+        }
+        java.util.List<String[]> list = presets(ctx);
+        for (String[] p : list) {
+            if (p[0].equalsIgnoreCase(hit[0])) {
+                return hit[0] + " is already saved.";
+            }
+        }
+        list.add(new String[]{hit[0], hit[1]});
+        savePresets(ctx, list);
+        return "Saved " + hit[0] + ".";
+    }
+
+    public static void removePreset(Context ctx, int index) {
+        java.util.List<String[]> list = presets(ctx);
+        if (index >= 0 && index < list.size()) {
+            list.remove(index);
+            savePresets(ctx, list);
+            if (scanIndex >= list.size()) {
+                scanIndex = -1;
+            }
+        }
+    }
+
+    /** Start (or continue) scanning: play the next saved station, keep moving. */
+    public static String scan(Context ctx) {
+        java.util.List<String[]> list = presets(ctx);
+        if (list.isEmpty()) {
+            return GLYPH + " No stations saved - add a few in the app first.";
+        }
+        scanning = true;
+        hops = 0;
+        return tune(ctx, list, +1, true);
+    }
+
+    /** One station forward or back. Keeps scanning if a scan was running. */
+    public static String step(Context ctx, int dir) {
+        java.util.List<String[]> list = presets(ctx);
+        if (list.isEmpty()) {
+            return GLYPH + " No stations saved - add a few in the app first.";
+        }
+        return tune(ctx, list, dir, scanning);
+    }
+
+    /** Stay on the current station; the scan stops moving. */
+    public static String keep(Context ctx) {
+        boolean was = scanning;
+        cancelScan();
+        String on = nowPlaying;
+        return on == null ? GLYPH + " Nothing is playing."
+                : GLYPH + (was ? " Staying on " : " ") + on;
+    }
+
+    public static boolean scanning() {
+        return scanning;
+    }
+
+    private static synchronized String tune(final Context ctx, java.util.List<String[]> list,
+                                            int dir, boolean keepMoving) {
+        int n = list.size();
+        String[] p = null;
+        String url = null;
+        // A station that will not resolve is SKIPPED, not the end of the scan:
+        // step past it, up to once round the list, before giving up.
+        for (int tries = 0; tries < n; tries++) {
+            scanIndex = ((scanIndex + dir) % n + n) % n;
+            String[] cand = list.get(scanIndex);
+            String u = cand[1];
+            if (u.isEmpty()) {
+                String[] hit = find(ctx, cand[0]);   // saved by name only
+                u = hit == null ? "" : hit[1];
+            }
+            if (!u.isEmpty()) {
+                p = cand;
+                url = u;
+                break;
+            }
+            Log.w(TAG, "skipping " + cand[0] + ": no stream");
+        }
+        if (p == null) {
+            cancelScan();
+            return GLYPH + " None of the saved stations would resolve.";
+        }
+        String line = open(ctx.getApplicationContext(), url, p[0]);
+        if (scanTick != null) {
+            SCAN.removeCallbacks(scanTick);
+        }
+        if (keepMoving) {
+            scanning = true;
+            scanTick = new Runnable() {
+                @Override
+                public void run() {
+                    if (!scanning) {
+                        return;
+                    }
+                    // OFF THE MAIN THREAD. This Handler fires on it, and the
+                    // next station may need a directory lookup - which threw
+                    // NetworkOnMainThreadException, was swallowed by search(),
+                    // and came back as "KQED is not in the directory any
+                    // more" for a station with five entries in it.
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            java.util.List<String[]> now = presets(ctx);
+                            if (now.isEmpty() || !scanning) {
+                                scanning = false;
+                                return;
+                            }
+                            // Say where the scan has got to, so the lens tracks it.
+                            Cards.post(ctx.getApplicationContext(), Cards.title(ctx),
+                                    tune(ctx, now, +1, true), "media");
+                        }
+                    }, "radio-scan").start();
+                }
+            };
+            // The FIRST station is held twice as long. Partly because the
+            // wearer just asked and deserves a moment to settle on it, and
+            // partly because on the crown channel the answer card is deferred
+            // behind RayNeo's own reply (see Cards.waitNativeIdle) - so a hop
+            // at the normal interval put "2/2: KQED" on the lens BEFORE
+            // "1/2: KPFA" arrived, with KQED already playing. Measured.
+            SCAN.postDelayed(scanTick, hops++ == 0 ? SCAN_DWELL_MS * 2 : SCAN_DWELL_MS);
+        }
+        return line.startsWith(GLYPH)
+                ? GLYPH + " " + (keepMoving ? "Scanning " : "")
+                  + (scanIndex + 1) + "/" + n + ": " + p[0]
+                : line;
+    }
+
+    private static void cancelScan() {
+        scanning = false;
+        if (scanTick != null) {
+            SCAN.removeCallbacks(scanTick);
+            scanTick = null;
+        }
     }
 
     // ---- http --------------------------------------------------------------

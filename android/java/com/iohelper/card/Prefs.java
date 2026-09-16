@@ -184,6 +184,15 @@ public final class Prefs {
      * code. The inference still covers the unambiguous call signs without it.
      */
     public static final String RADIO_CALLSIGNS = "radio.call_signs";
+    /**
+     * Saved stations for the scan, as JSON [{name, url}], oldest first.
+     *
+     * Resolved through the directory when they are ADDED, so "scan stations"
+     * never spends a lookup per station and moves on every dozen seconds the
+     * way a car radio does. Managed from the app's Radio panel; DEFAULT EMPTY,
+     * so no personal station list ships in the code.
+     */
+    public static final String RADIO_PRESETS = "radio.presets";
     /** The Sonos room last controlled - what a bare "on the Sonos" means. */
     public static final String SONOS_LAST = "sonos.last_room";
     /** Cached speakers, so one failed probe does not mean "no Sonos here". */

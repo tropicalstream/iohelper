@@ -6,6 +6,9 @@ public final class Radio {
     public static final String GLYPH = "≈";
     public static String[] find(Context c, String q) { return null; }
     public static String[] callSign(Context c, String w) { return null; }
+    public static String scan(Context c) { return "stub"; }
+    public static String step(Context c, int d) { return "stub"; }
+    public static String keep(Context c) { return "stub"; }
     public static boolean vague(String q) { return false; }
     public static String playOnPhone(Context c, String u, String n) { return "stub"; }
     public static boolean stopPhone() { return false; }

@@ -42,6 +42,33 @@ public class MainActivity extends Activity {
     private static final int REQ_MIC = 7;
     /** The glasses channel: reading crown-press transcripts, or not. */
     private Button listenButton;
+    /** Now playing: the headline, the detail line, and the middle button. */
+    private TextView npTitle;
+    private TextView npDetail;
+    private Button npMiddle;
+    /** The saved-station rows, rebuilt whenever the list changes. */
+    private LinearLayout stationRows;
+    /**
+     * Reads what is playing every few seconds while the screen is up. Off the
+     * main thread: Radio.current() is instant, but a phone track is read over
+     * the adb socket with `dumpsys media_session`, which is not.
+     */
+    private final Runnable mediaTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!resumed) {
+                return;
+            }
+            new Thread(() -> {
+                final String station = Radio.current();
+                final boolean scanning = Radio.scanning();
+                Media.Track t = station == null ? Media.current(MainActivity.this) : null;
+                final Media.Track track = t;
+                ui.post(() -> showNowPlaying(station, scanning, track));
+            }, "now-playing").start();
+            ui.postDelayed(this, 3000);
+        }
+    };
 
     private static final int BG = Color.parseColor("#0B0D12");
     private static final int CARD = Color.parseColor("#161A24");
@@ -136,6 +163,9 @@ public class MainActivity extends Activity {
         slp.leftMargin = dp(2);
         statusView.setLayoutParams(slp);
         root.addView(statusView);
+
+        nowPlayingPanel(root);
+        radioPanel(root);
 
         // NO VOICE SOURCE SECTION, and no wake word field either. Both offered
         // a choice with one working answer.
@@ -588,12 +618,14 @@ public class MainActivity extends Activity {
         refresh();
         resumed = true;
         ui.post(tick);
+        ui.post(mediaTick);
     }
 
     @Override
     protected void onPause() {
         resumed = false;
         ui.removeCallbacks(tick);
+        ui.removeCallbacks(mediaTick);
         super.onPause();
     }
 
@@ -997,6 +1029,255 @@ public class MainActivity extends Activity {
         });
         parent.addView(s);
         return s;
+    }
+
+    // ---- now playing --------------------------------------------------------
+
+    /**
+     * What is playing, and four buttons to drive it.
+     *
+     * One panel for every source, because the wearer does not think in
+     * sources: a station, a Spotify track and a YouTube video are all "what's
+     * on", and the same four buttons should mean the same four things. They
+     * are contextual underneath - on a station the outer pair step through the
+     * saved presets and the middle one holds or resumes the scan, while on a
+     * track they are the media keys - but nothing on the surface says so,
+     * because nothing needs to.
+     */
+    private void nowPlayingPanel(ViewGroup root) {
+        root.addView(heading2("Now playing"));
+        LinearLayout np = card(root);
+        npTitle = new TextView(this);
+        npTitle.setTextColor(FG);
+        npTitle.setTextSize(17);
+        npTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        npTitle.setSingleLine(true);
+        npTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        npTitle.setPadding(dp(2), dp(14), dp(2), dp(2));
+        np.addView(npTitle);
+        npDetail = new TextView(this);
+        npDetail.setTextColor(MUTED);
+        npDetail.setTextSize(13);
+        npDetail.setSingleLine(true);
+        npDetail.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        npDetail.setPadding(dp(2), 0, dp(2), dp(12));
+        np.addView(npDetail);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        np.addView(row);
+        transport(row, "\u23ee\ufe0e", () -> stepOrKey(-1, "previous"));
+        npMiddle = transport(row, "\u23ef\ufe0e", () -> {
+            if (Radio.current() != null) {
+                // On a station the middle button is the scan's hold/resume.
+                return Radio.scanning() ? Radio.keep(this) : Radio.scan(this);
+            }
+            return Media.control(this, "toggle");
+        });
+        transport(row, "\u23ed\ufe0e", () -> stepOrKey(+1, "next"));
+        // A black square rather than U+23F9: the phone's emoji font claims
+        // the latter and drew it as an orange emoji beside three monochrome
+        // neighbours. The selector on the others pins them to text too.
+        transport(row, "\u25a0", () -> {
+            if (Radio.current() != null) {
+                String was = Radio.current();
+                Radio.stopPhone();
+                return "\u23f9 " + was + " stopped.";
+            }
+            return Media.control(this, "stop");
+        });
+        showNowPlaying(null, false, null);
+    }
+
+    private String stepOrKey(int dir, String key) {
+        return Radio.current() != null ? Radio.step(this, dir) : Media.control(this, key);
+    }
+
+    /** One transport button. The action runs off the main thread and the panel refreshes after. */
+    private Button transport(LinearLayout row, String glyph,
+                             final java.util.concurrent.Callable<String> action) {
+        Button b = new Button(this);
+        b.setText(glyph);
+        b.setTextColor(FG);
+        b.setTextSize(20);
+        b.setAllCaps(false);
+        b.setStateListAnimator(null);
+        b.setBackground(surface(INPUT, LINE, 12));
+        b.setPadding(0, dp(10), 0, dp(10));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        b.setLayoutParams(lp);
+        b.setOnClickListener(v -> new Thread(() -> {
+            try {
+                action.call();
+            } catch (Exception e) {
+                android.util.Log.w("iohelper", "transport: " + e);
+            }
+            ui.postDelayed(() -> { ui.removeCallbacks(mediaTick); ui.post(mediaTick); }, 400);
+        }, "transport").start());
+        row.addView(b);
+        return b;
+    }
+
+    private void showNowPlaying(String station, boolean scanning, Media.Track track) {
+        if (npTitle == null) {
+            return;
+        }
+        if (station != null) {
+            npTitle.setText(Radio.GLYPH + "  " + station);
+            npDetail.setText(scanning ? "Scanning saved stations \u00b7 tap \u23ef to stay here"
+                    : "Live radio \u00b7 \u23ee \u23ed step through saved stations");
+            npMiddle.setText(scanning ? "\u23f8\ufe0e" : "\u23ef\ufe0e");
+        } else if (track != null && track.title != null && !track.title.isEmpty()) {
+            npTitle.setText((track.playing ? Media.glyphFor(track.pkg) : "\u23f8\ufe0e") + "  "
+                    + track.title);
+            npDetail.setText(track.artist == null || track.artist.isEmpty()
+                    ? (track.playing ? "Playing" : "Paused") : track.artist);
+            npMiddle.setText("\u23ef\ufe0e");
+        } else {
+            npTitle.setText("Nothing playing");
+            npDetail.setText("Say \"play\u2026\", or scan your saved stations below");
+            npMiddle.setText("\u23ef\ufe0e");
+        }
+    }
+
+    // ---- radio stations -------------------------------------------------------
+
+    /**
+     * The saved stations, and the scan that walks through them.
+     *
+     * Added by NAME and resolved through the directory at that moment, so the
+     * list shows what will actually play - "KEXP 90.3 Seattle, WA", not the
+     * three letters typed - and the scan never waits on a lookup.
+     */
+    private void radioPanel(ViewGroup root) {
+        root.addView(heading2("Radio stations"));
+        final LinearLayout panel = card(root);
+        stationRows = new LinearLayout(this);
+        stationRows.setOrientation(LinearLayout.VERTICAL);
+        stationRows.setPadding(0, dp(8), 0, 0);
+        panel.addView(stationRows);
+        rebuildStations();
+
+        LinearLayout addRow = new LinearLayout(this);
+        addRow.setOrientation(LinearLayout.HORIZONTAL);
+        addRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams arl = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        arl.topMargin = dp(10);
+        addRow.setLayoutParams(arl);
+        final EditText name = new EditText(this);
+        name.setHint("Station name or call sign");
+        name.setHintTextColor(MUTED);
+        name.setTextColor(FG);
+        name.setTextSize(14);
+        name.setSingleLine(true);
+        name.setBackground(surface(INPUT, LINE, 10));
+        name.setPadding(dp(12), dp(11), dp(12), dp(11));
+        name.setLayoutParams(new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        addRow.addView(name);
+        final Button add = new Button(this);
+        add.setText("Add");
+        add.setAllCaps(false);
+        add.setTextColor(Color.WHITE);
+        add.setTextSize(14);
+        add.setStateListAnimator(null);
+        add.setBackground(surface(ACCENT, 0, 10));
+        add.setPadding(dp(18), dp(10), dp(18), dp(10));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp.leftMargin = dp(8);
+        add.setLayoutParams(alp);
+        addRow.addView(add);
+        panel.addView(addRow);
+        add.setOnClickListener(v -> {
+            final String q = name.getText().toString().trim();
+            if (q.isEmpty()) {
+                return;
+            }
+            add.setEnabled(false);
+            add.setText("\u2026");
+            new Thread(() -> {
+                // A directory lookup: never on the main thread.
+                final String result = Radio.addPreset(MainActivity.this, q);
+                ui.post(() -> {
+                    add.setEnabled(true);
+                    add.setText("Add");
+                    Toast.makeText(MainActivity.this, result, Toast.LENGTH_SHORT).show();
+                    if (result.startsWith("Saved")) {
+                        name.setText("");
+                    }
+                    rebuildStations();
+                });
+            }, "add-station").start();
+        });
+
+        Button scan = button(panel, "\u25b6  Scan stations");
+        scan.setOnClickListener(v -> new Thread(() -> {
+            Radio.scan(MainActivity.this);
+            ui.post(() -> { ui.removeCallbacks(mediaTick); ui.post(mediaTick); });
+        }, "scan").start());
+        panel.addView(hint("Or say it: \"scan stations\" plays each saved station for about "
+                + "twelve seconds and moves on - \"keep this\" stays, \"next station\" "
+                + "and \"previous station\" step, \"stop\" ends it. Names are resolved "
+                + "when added, so the list shows what will actually play."));
+    }
+
+    private void rebuildStations() {
+        if (stationRows == null) {
+            return;
+        }
+        stationRows.removeAllViews();
+        java.util.List<String[]> list = Radio.presets(this);
+        if (list.isEmpty()) {
+            TextView none = new TextView(this);
+            none.setText("No stations saved yet.");
+            none.setTextColor(MUTED);
+            none.setTextSize(13);
+            none.setPadding(dp(2), dp(6), dp(2), dp(4));
+            stationRows.addView(none);
+            return;
+        }
+        for (int i = 0; i < list.size(); i++) {
+            final int index = i;
+            final String[] p = list.get(i);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setBackground(surface(INPUT, 0, 10));
+            row.setPadding(dp(12), dp(8), dp(6), dp(8));
+            LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rl.bottomMargin = dp(6);
+            row.setLayoutParams(rl);
+            TextView n = new TextView(this);
+            n.setText((index + 1) + "   " + p[0]);
+            n.setTextColor(FG);
+            n.setTextSize(14);
+            n.setSingleLine(true);
+            n.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            n.setLayoutParams(new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            // Tapping the name plays it - the quickest "put that on" there is.
+            n.setOnClickListener(v -> new Thread(() -> {
+                Radio.playOnPhone(MainActivity.this, p[1], p[0]);
+                ui.post(() -> { ui.removeCallbacks(mediaTick); ui.post(mediaTick); });
+            }, "play-station").start());
+            row.addView(n);
+            TextView x = new TextView(this);
+            x.setText("\u00d7");
+            x.setTextColor(MUTED);
+            x.setTextSize(18);
+            x.setPadding(dp(14), dp(2), dp(10), dp(2));
+            x.setOnClickListener(v -> {
+                Radio.removePreset(MainActivity.this, index);
+                rebuildStations();
+            });
+            row.addView(x);
+            stationRows.addView(row);
+        }
     }
 
     private Button button(ViewGroup parent, String label) {

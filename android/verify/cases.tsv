@@ -457,3 +457,9 @@ play the joe rogan podcast on spotify	media_play_spotify
 cancel the timer	timer.cancel
 cancel the pasta timer jarvis	timer.cancel
 stop the alarm	timer.cancel
+scan stations	radio.scan
+scan the radio stations jarvis	radio.scan
+next station	radio.step
+previous station jarvis	radio.step
+keep this one	radio.keep
+stop scanning	radio.keep

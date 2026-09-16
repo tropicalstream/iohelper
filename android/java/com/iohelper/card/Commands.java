@@ -241,6 +241,30 @@ public final class Commands {
             + "(.+?)"
             + "\\s*[.?!]*$",
             Pattern.CASE_INSENSITIVE);
+    /**
+     * The saved-station scan, a car radio's seek button by voice: "scan
+     * stations" starts it, "next/previous station" steps, "keep this" stays.
+     *
+     * Checked BEFORE the radio and transport patterns, both of which would
+     * otherwise claim these words - "next station" is a track skip to
+     * TRANSPORT, and "scan the radio stations" is a station named "scan" to
+     * RADIO. The station noun is required throughout so "next" on its own is
+     * still the track skip it always was.
+     */
+    private static final Pattern RADIO_SCAN = Pattern.compile(
+            "^\\W*(?:can you |could you |please |hey )*"
+            + "(?:scan|cycle|flip)(?:\\s+through)?\\s+(?:the\\s+|my\\s+)?(?:radio\\s+)?"
+            + "(?:stations?|presets?)\\s*[.?!]*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RADIO_STEP = Pattern.compile(
+            "^\\W*(?:can you |could you |please |hey )*"
+            + "(next|previous|prev|last)\\s+(?:radio\\s+)?(?:station|preset)\\s*[.?!]*$",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern RADIO_KEEP = Pattern.compile(
+            "^\\W*(?:can you |could you |please |hey )*"
+            + "(?:stop\\s+scanning|keep\\s+(?:this|it)(?:\\s+(?:one|station))?"
+            + "|stay\\s+(?:here|on\\s+this(?:\\s+(?:one|station))?)|this\\s+one)"
+            + "\\s*[.?!]*$", Pattern.CASE_INSENSITIVE);
+
     /** The noun that makes a request a RADIO request rather than a music one. */
     private static final Pattern RADIO_NOUN = Pattern.compile(
             "\\b(?:radio|station|airwaves|am|fm)\\b", Pattern.CASE_INSENSITIVE);
@@ -927,6 +951,19 @@ public final class Commands {
         // before the to-do pattern so it is never noted down as a task. The
         // informational "how long/how far to X" opens with how/what and does not
         // match here; it falls through to Search's directions summary.
+        // The station scan, before radio and transport both - see RADIO_SCAN.
+        if (RADIO_SCAN.matcher(t).find()) {
+            return new Cmd("radio.scan", 0, "");
+        }
+        Matcher rs = RADIO_STEP.matcher(t);
+        if (rs.find()) {
+            return new Cmd("radio.step", 0, "",
+                    rs.group(1).toLowerCase(Locale.US).startsWith("next") ? "+1" : "-1");
+        }
+        if (RADIO_KEEP.matcher(t).find()) {
+            return new Cmd("radio.keep", 0, "");
+        }
+
         // Radio, before the music patterns: a station is not a song, and
         // resolving "K\\ED" through a music catalogue finds nothing useful.
         Matcher rm = RADIO.matcher(t);
@@ -1782,6 +1819,12 @@ public final class Commands {
                     return cmd.text == null || cmd.text.trim().isEmpty()
                             ? Media.assistant(ctx, null)
                             : Assist.ask(ctx, cmd.text);
+                case "radio.scan":
+                    return Radio.scan(ctx);
+                case "radio.step":
+                    return Radio.step(ctx, "-1".equals(cmd.due) ? -1 : 1);
+                case "radio.keep":
+                    return Radio.keep(ctx);
                 case "radio.play": {
                     if (Radio.vague(cmd.text)) {
                         // "play the radio" names nothing. Ask, rather than pick
