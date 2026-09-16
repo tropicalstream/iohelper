@@ -303,6 +303,21 @@ public final class Radio {
 
     private static MediaPlayer player;
     private static volatile String nowPlaying;
+    /** Reconnects spent on the current outage; reset once the stream holds. */
+    private static volatile int attempts;
+    /** When the current stream started playing, or 0 while it is opening. */
+    private static volatile long startedAt;
+    /**
+     * Bumped on every open and stop. A reconnect scheduled for an outage that
+     * the wearer has since ended - by stopping, or by starting something else
+     * - must not come back and restart a station nobody wants any more.
+     */
+    private static volatile int generation;
+    /** Reopen this many times before giving up on a stream. */
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_MS = 2000;
+    /** A stream that ran this long before failing gets a fresh retry budget. */
+    private static final long HELD_MS = 30_000;
     /** Kept so stopPhone() can hand audio focus back; it takes no Context. */
     private static volatile Context appCtx;
 
@@ -379,9 +394,33 @@ public final class Radio {
      * starting, and an error later corrects it rather than a lie standing.
      */
     public static synchronized String playOnPhone(Context ctx, String url, String name) {
+        attempts = 0;
+        return open(ctx.getApplicationContext(), url, name);
+    }
+
+    /**
+     * Open a stream, fresh or as a reconnect.
+     *
+     * A LIVE STREAM DROPPING ONCE IS ORDINARY - mobile networks hiccup, a
+     * station restarts its encoder - and a single MediaPlayer error used to end
+     * playback for good, with "would not play" on the lens for a station that
+     * had been playing fine for twenty minutes. Measured: "stream error
+     * 1/-2147483648", MEDIA_ERROR_UNKNOWN on a KPFA stream that had been up
+     * since the request. So an error reopens the same URL, up to MAX_RETRIES
+     * times a couple of seconds apart, and only then admits defeat. A stream
+     * that held for HELD_MS before failing starts a fresh budget, so an
+     * intermittent link keeps recovering all afternoon instead of spending its
+     * three chances on the first three blips.
+     *
+     * Silent on success on purpose: a reconnect the wearer hears as a two
+     * second gap needs no card, and one saying "reconnecting" would arrive
+     * after the music was already back.
+     */
+    private static synchronized String open(final Context app, final String url,
+                                            final String name) {
         stopPhone();
+        final int mine = ++generation;
         try {
-            final Context app = ctx.getApplicationContext();
             MediaPlayer mp = new MediaPlayer();
             mp.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -397,23 +436,59 @@ public final class Radio {
                                 AudioManager.AUDIOFOCUS_GAIN);
                     }
                     m.start();
+                    startedAt = System.currentTimeMillis();
+                    if (attempts > 0) {
+                        Log.i(TAG, "reconnected " + name + " (attempt " + attempts + ")");
+                    }
                 }
             });
             mp.setOnErrorListener(new MediaPlayer.OnErrorListener() {
                 @Override
                 public boolean onError(MediaPlayer m, int what, int extra) {
                     Log.w(TAG, "stream error " + what + "/" + extra);
-                    // Correct the card rather than leave "playing" standing on
-                    // the glasses for a stream that never opened.
+                    if (mine != generation) {
+                        return true;                 // already replaced or stopped
+                    }
+                    // A stream that held for a while earns a fresh budget: this
+                    // is a new outage, not the same one still failing.
+                    long ran = startedAt > 0 ? System.currentTimeMillis() - startedAt : 0;
+                    if (ran > HELD_MS) {
+                        attempts = 0;
+                    }
+                    if (attempts < MAX_RETRIES) {
+                        final int next = attempts + 1;
+                        Log.i(TAG, "reopening " + name + " in " + RETRY_MS + " ms (attempt "
+                                + next + "/" + MAX_RETRIES + ", ran " + ran / 1000 + "s)");
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    Thread.sleep(RETRY_MS);
+                                } catch (InterruptedException e) {
+                                    return;
+                                }
+                                synchronized (Radio.class) {
+                                    if (mine != generation) {
+                                        return;      // the wearer moved on meanwhile
+                                    }
+                                    attempts = next;
+                                    open(app, url, name);
+                                }
+                            }
+                        }, "radio-reconnect").start();
+                        return true;
+                    }
+                    // Out of retries: correct the card rather than leave
+                    // "playing" standing on the glasses for a dead stream.
                     Cards.post(app, Cards.title(app),
-                            GLYPH + " " + Cards.sanitize(nowPlaying == null ? "Station" : nowPlaying)
-                            + " would not play.", "answer");
+                            GLYPH + " " + Cards.sanitize(name) + " would not play.", "answer");
                     stopPhone();
                     return true;
                 }
             });
             player = mp;
             nowPlaying = name;
+            startedAt = 0;
             appCtx = app;
             mp.prepareAsync();
             return GLYPH + " " + name;
@@ -425,6 +500,7 @@ public final class Radio {
 
     /** Stop phone playback. Safe to call when nothing is playing. */
     public static synchronized boolean stopPhone() {
+        generation++;                              // any pending reconnect stands down
         boolean was = player != null;
         if (player != null) {
             try {
