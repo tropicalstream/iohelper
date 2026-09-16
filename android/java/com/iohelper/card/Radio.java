@@ -394,8 +394,7 @@ public final class Radio {
      * starting, and an error later corrects it rather than a lie standing.
      */
     public static synchronized String playOnPhone(Context ctx, String url, String name) {
-        attempts = 0;
-        return open(ctx.getApplicationContext(), url, name);
+        return open(ctx.getApplicationContext(), url, name, 0);
     }
 
     /**
@@ -417,9 +416,16 @@ public final class Radio {
      * after the music was already back.
      */
     private static synchronized String open(final Context app, final String url,
-                                            final String name) {
+                                            final String name, int attempt) {
         release();
         final int mine = ++generation;
+        // The retry count travels WITH the open rather than living in a
+        // static that only one caller reset. It used to: a scan hop went
+        // through open() directly, inherited attempts=1 from a real drop hours
+        // earlier, and every station it visited was logged as "reconnected
+        // (attempt 1)" with no error anywhere - a phantom, but one that would
+        // also have cost each station a retry it had not used.
+        attempts = attempt;
         try {
             MediaPlayer mp = new MediaPlayer();
             mp.setAudioAttributes(new AudioAttributes.Builder()
@@ -471,8 +477,7 @@ public final class Radio {
                                     if (mine != generation) {
                                         return;      // the wearer moved on meanwhile
                                     }
-                                    attempts = next;
-                                    open(app, url, name);
+                                    open(app, url, name, next);
                                 }
                             }
                         }, "radio-reconnect").start();
@@ -669,7 +674,7 @@ public final class Radio {
             cancelScan();
             return GLYPH + " None of the saved stations would resolve.";
         }
-        String line = open(ctx.getApplicationContext(), url, p[0]);
+        String line = open(ctx.getApplicationContext(), url, p[0], 0);
         if (scanTick != null) {
             SCAN.removeCallbacks(scanTick);
         }
